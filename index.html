@@ -82,6 +82,12 @@
     letter-spacing: 0.01em;
   }
 
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
   .tool-nav {
     display: flex;
     gap: 4px;
@@ -649,13 +655,15 @@
     <span class="mark">ESI</span>
     <h1>Trade Route Finder</h1>
   </div>
-  <nav class="tool-nav">
-    <a href="index.html" class="active">交易ルート探索</a>
-    <a href="item-price-finder.html">アイテム価格比較</a>
-  </nav>
-  <div class="status-line">
-    <span class="status-dot offline" id="esi-status-dot"></span>
-    <span id="esi-status-text">ESI未接続</span>
+  <div class="header-right">
+    <nav class="tool-nav">
+      <a href="index.html" class="active">交易ルート探索</a>
+      <a href="item-price-finder.html">アイテム価格比較</a>
+    </nav>
+    <div class="status-line">
+      <span class="status-dot offline" id="esi-status-dot"></span>
+      <span id="esi-status-text">ESI未接続</span>
+    </div>
   </div>
 </header>
 
