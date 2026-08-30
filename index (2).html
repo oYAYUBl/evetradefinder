@@ -1,0 +1,2309 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trade Route Finder — New Eden</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg-void:      #0a0e16;
+    --bg-panel:     #101822;
+    --bg-panel-2:   #151f2c;
+    --line:         #22303f;
+    --line-bright:  #2f4356;
+    --cyan:         #4fd1c5;
+    --cyan-dim:     #2d7a72;
+    --amber:        #e8a33d;
+    --amber-dim:    #8a6224;
+    --text-main:    #c9d6e3;
+    --text-dim:     #6f8296;
+    --text-bright:  #eef4f9;
+    --danger:       #e0637a;
+    --sec-high:     #57d68d;
+    --sec-low:      #e8a33d;
+    --sec-null:     #e0637a;
+    --link-color:   #b06fd1;
+
+    --font-ui:   'Inter', -apple-system, sans-serif;
+    --font-mono: 'Space Mono', 'SFMono-Regular', monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg-void);
+    background-image:
+      radial-gradient(1px 1px at 20px 30px, rgba(255,255,255,0.15), transparent),
+      radial-gradient(1px 1px at 120px 80px, rgba(255,255,255,0.1), transparent),
+      radial-gradient(1px 1px at 250px 200px, rgba(255,255,255,0.12), transparent),
+      radial-gradient(1px 1px at 340px 60px, rgba(255,255,255,0.08), transparent),
+      radial-gradient(2px 2px at 400px 300px, rgba(79,209,197,0.15), transparent);
+    background-repeat: repeat;
+    background-size: 500px 500px;
+    color: var(--text-main);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    border-bottom: 1px solid var(--line);
+    padding: 20px 32px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    background: linear-gradient(180deg, rgba(21,31,44,0.6), transparent);
+  }
+
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  .brand .mark {
+    font-family: var(--font-mono);
+    color: var(--cyan);
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    border: 1px solid var(--cyan-dim);
+    padding: 3px 8px;
+    border-radius: 2px;
+  }
+
+  .brand h1 {
+    font-size: 19px;
+    font-weight: 600;
+    color: var(--text-bright);
+    margin: 0;
+    letter-spacing: 0.01em;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .tool-nav {
+    display: flex;
+    gap: 4px;
+  }
+  .tool-nav a {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+  .tool-nav a:hover { color: var(--text-main); }
+  .tool-nav a.active {
+    color: var(--cyan);
+    border-color: var(--cyan-dim);
+    background: rgba(79,209,197,0.08);
+  }
+
+  .status-line {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    box-shadow: 0 0 0 0 transparent;
+  }
+  .status-dot.offline { background: var(--danger); }
+  .status-dot.online { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+
+  /* ---------- Layout ---------- */
+  .layout {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 1px;
+    background: var(--line);
+    min-height: calc(100vh - 68px);
+  }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--bg-panel);
+    padding: 24px;
+  }
+
+  .panel-main {
+    background: var(--bg-void);
+    padding: 24px 32px;
+  }
+
+  /* ---------- Form elements ---------- */
+  .field-group {
+    margin-bottom: 22px;
+  }
+
+  .field-group legend,
+  .field-label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .route-pair {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .route-pair .arrow {
+    color: var(--cyan-dim);
+    font-family: var(--font-mono);
+    flex-shrink: 0;
+  }
+
+  input[type="text"],
+  input[type="number"],
+  select {
+    width: 100%;
+    background: var(--bg-panel-2);
+    border: 1px solid var(--line-bright);
+    color: var(--text-bright);
+    padding: 9px 10px;
+    border-radius: 3px;
+    font-family: var(--font-ui);
+    font-size: 13.5px;
+    outline: none;
+    transition: border-color 0.15s ease;
+  }
+
+  input[type="text"]:focus,
+  input[type="number"]:focus,
+  select:focus {
+    border-color: var(--cyan);
+  }
+
+  input::placeholder { color: var(--text-dim); }
+
+  .stack { display: flex; flex-direction: column; gap: 10px; }
+
+  .row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-main);
+  }
+
+  .init-status {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-dim);
+    margin-top: 6px;
+  }
+  .init-status.ok { color: var(--cyan-dim); }
+  .init-status.error { color: var(--danger); }
+
+  .progress-line {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--cyan);
+    margin-bottom: 12px;
+    display: none;
+  }
+  .progress-line.visible { display: block; }
+
+  .error-banner {
+    border: 1px solid var(--danger);
+    background: rgba(224,99,122,0.08);
+    color: var(--danger);
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .error-banner.visible { display: block; }
+
+  .checkbox-row input {
+    accent-color: var(--cyan);
+    width: 15px;
+    height: 15px;
+  }
+
+  .mode-toggle {
+    display: flex;
+    border: 1px solid var(--line-bright);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .mode-toggle button {
+    flex: 1;
+    background: var(--bg-panel-2);
+    color: var(--text-dim);
+    border: none;
+    padding: 9px 8px;
+    font-family: var(--font-ui);
+    font-size: 12.5px;
+    cursor: pointer;
+    border-right: 1px solid var(--line-bright);
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .mode-toggle button:last-child { border-right: none; }
+  .mode-toggle button.active {
+    background: rgba(79,209,197,0.12);
+    color: var(--cyan);
+  }
+  .mode-toggle button:hover:not(.active) {
+    color: var(--text-main);
+  }
+
+  .advanced-fields {
+    margin-top: 12px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--line);
+    display: none;
+  }
+  .advanced-fields.visible { display: block; }
+
+  .unit-input {
+    position: relative;
+  }
+  .unit-input input { padding-right: 44px; }
+  .unit-input .unit {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    pointer-events: none;
+  }
+
+  /* ---------- Auth block ---------- */
+  .auth-block {
+    border: 1px solid var(--line-bright);
+    border-radius: 4px;
+    padding: 14px;
+    background: var(--bg-panel-2);
+    margin-bottom: 22px;
+  }
+  .auth-block .auth-state {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+  .btn-sso {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--amber-dim);
+    color: var(--amber);
+    padding: 9px;
+    border-radius: 3px;
+    font-size: 13px;
+    font-family: var(--font-ui);
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  .btn-sso:hover { background: rgba(232,163,61,0.1); }
+  .btn-sso + .btn-sso { margin-top: 6px; }
+
+  #auth-setup { margin-bottom: 10px; }
+
+  .auth-skills {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.7;
+  }
+  .auth-skills .skill-value { color: var(--cyan); }
+
+  .structure-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--bg-panel-2);
+    border: 1px solid var(--line-bright);
+    border-radius: 3px;
+    padding: 6px 8px;
+    margin-top: 6px;
+    font-size: 12px;
+  }
+  .structure-chip .chip-name { color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .structure-chip .chip-remove {
+    background: transparent;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  /* ---------- Submit ---------- */
+  .btn-primary {
+    width: 100%;
+    background: var(--cyan);
+    color: #06231f;
+    border: none;
+    padding: 12px;
+    border-radius: 3px;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: var(--font-ui);
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: filter 0.15s ease;
+  }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-primary:disabled {
+    background: var(--line-bright);
+    color: var(--text-dim);
+    cursor: not-allowed;
+  }
+
+  /* ---------- Main panel: results ---------- */
+  .panel-main h2 {
+    font-size: 15px;
+    color: var(--text-bright);
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+  .panel-main .subtitle {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    margin: 0 0 24px;
+  }
+
+  .empty-state {
+    border: 1px dashed var(--line-bright);
+    border-radius: 6px;
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+  .empty-state .glyph {
+    font-family: var(--font-mono);
+    font-size: 28px;
+    color: var(--cyan-dim);
+    margin-bottom: 12px;
+  }
+
+  table.results {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 16px;
+  }
+  table.results th {
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line-bright);
+  }
+  table.results td {
+    padding: 10px;
+    border-bottom: 1px solid var(--line);
+    color: var(--text-main);
+  }
+  table.results tr:hover td { background: rgba(79,209,197,0.04); }
+  .profit-positive { color: var(--cyan); font-family: var(--font-mono); }
+
+  /* ---------- Starmap selector ---------- */
+  .starmap-panel {
+    margin-top: 28px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 16px;
+    background: linear-gradient(180deg, rgba(79,209,197,0.03), transparent);
+  }
+  .starmap-panel .teaser-label {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-dim);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .btn-toggle-map {
+    background: transparent;
+    border: 1px solid var(--cyan-dim);
+    color: var(--cyan);
+    padding: 4px 10px;
+    border-radius: 3px;
+    font-family: var(--font-ui);
+    font-size: 11.5px;
+    cursor: pointer;
+  }
+  .btn-toggle-map:hover { background: rgba(79,209,197,0.08); }
+
+  .starmap-body { display: none; }
+  .starmap-body.expanded { display: block; }
+
+  .starmap-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .target-toggle {
+    display: flex;
+    border: 1px solid var(--line-bright);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .target-toggle button {
+    background: var(--bg-panel-2);
+    color: var(--text-dim);
+    border: none;
+    padding: 7px 12px;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    cursor: pointer;
+    border-right: 1px solid var(--line-bright);
+  }
+  .target-toggle button:last-child { border-right: none; }
+  .target-toggle button.active[data-target="origin"] {
+    background: rgba(79,209,197,0.14); color: var(--cyan);
+  }
+  .target-toggle button.active[data-target="dest"] {
+    background: rgba(232,163,61,0.14); color: var(--amber);
+  }
+
+  .starmap-legend {
+    display: flex;
+    gap: 14px;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+  }
+  .starmap-legend .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+  .starmap-legend .dot.origin { background: var(--cyan); }
+  .starmap-legend .dot.dest { background: var(--text-bright); }
+
+  .starmap-status {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+
+  .starmap-viewport {
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--bg-void);
+    background-image:
+      radial-gradient(1px 1px at 15% 20%, rgba(255,255,255,0.12), transparent),
+      radial-gradient(1px 1px at 40% 70%, rgba(255,255,255,0.09), transparent),
+      radial-gradient(1px 1px at 65% 30%, rgba(255,255,255,0.1), transparent),
+      radial-gradient(1px 1px at 85% 60%, rgba(255,255,255,0.08), transparent),
+      radial-gradient(1px 1px at 25% 85%, rgba(255,255,255,0.07), transparent);
+    background-size: 100% 100%;
+    overflow: hidden;
+    position: relative;
+  }
+  svg.starmap { width: 100%; height: 620px; display: block; cursor: grab; touch-action: none; }
+  svg.starmap:active { cursor: grabbing; }
+
+  /* 接続線(EVE SDE由来の正確なリージョン隣接データ) */
+  svg.starmap .region-edge {
+    stroke: var(--link-color);
+    stroke-width: 1;
+    opacity: 0.4;
+    vector-effect: non-scaling-stroke;
+  }
+
+  svg.starmap .region-group { cursor: pointer; }
+
+  svg.starmap rect.region-box {
+    stroke-width: 1.2;
+    vector-effect: non-scaling-stroke;
+  }
+  svg.starmap rect.region-box.sec-high { fill: rgba(87,214,141,0.22); stroke: var(--sec-high); }
+  svg.starmap rect.region-box.sec-low  { fill: rgba(232,163,61,0.22); stroke: var(--sec-low); }
+  svg.starmap rect.region-box.sec-null { fill: rgba(224,99,122,0.22); stroke: var(--sec-null); }
+  svg.starmap rect.region-box.sec-unknown { fill: rgba(111,130,150,0.22); stroke: var(--text-dim); }
+
+  svg.starmap .region-group:hover rect.region-box {
+    stroke-width: 2;
+    filter: brightness(1.3);
+  }
+
+  svg.starmap rect.region-box.sel-origin {
+    stroke: var(--cyan);
+    stroke-width: 2.4;
+  }
+  svg.starmap rect.region-box.sel-dest {
+    stroke: var(--text-bright);
+    stroke-width: 2.4;
+    stroke-dasharray: 3 2;
+  }
+  svg.starmap rect.region-box.sel-origin.sel-dest {
+    stroke: var(--amber);
+    stroke-width: 2.6;
+    stroke-dasharray: none;
+  }
+
+  svg.starmap text.region-box-label {
+    fill: var(--text-bright);
+    font-family: var(--font-mono);
+    pointer-events: none;
+  }
+
+  .starmap-sec-legend {
+    display: flex;
+    gap: 14px;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    margin-top: 8px;
+  }
+  .starmap-sec-legend .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+  .starmap-sec-legend .dot.high { background: var(--sec-high); }
+  .starmap-sec-legend .dot.low  { background: var(--sec-low); }
+  .starmap-sec-legend .dot.null { background: var(--sec-null); }
+
+  .starmap-zoom-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 2;
+  }
+  .starmap-zoom-controls button {
+    width: 26px;
+    height: 26px;
+    background: rgba(16,24,34,0.85);
+    border: 1px solid var(--line-bright);
+    color: var(--text-main);
+    border-radius: 3px;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    font-family: var(--font-ui);
+  }
+  .starmap-zoom-controls button:hover {
+    border-color: var(--cyan-dim);
+    color: var(--cyan);
+  }
+
+  footer {
+    padding: 14px 32px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-dim);
+    border-top: 1px solid var(--line);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="mark">ESI</span>
+    <h1>Trade Route Finder</h1>
+  </div>
+  <div class="header-right">
+    <nav class="tool-nav">
+      <a href="index.html" class="active">交易ルート探索</a>
+      <a href="item-price-finder.html">アイテム価格比較</a>
+    </nav>
+    <div class="status-line">
+      <span class="status-dot offline" id="esi-status-dot"></span>
+      <span id="esi-status-text">ESI未接続</span>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ===================== SETTINGS PANEL ===================== -->
+  <aside class="panel">
+
+    <div class="field-group">
+      <span class="field-label">探索範囲</span>
+      <div class="route-pair">
+        <div style="flex:1">
+          <input list="region-list" type="text" id="origin-region" placeholder="出発リージョン">
+        </div>
+        <span class="arrow">→</span>
+        <div style="flex:1">
+          <input list="region-list" type="text" id="dest-region" placeholder="到着リージョン">
+        </div>
+      </div>
+      <datalist id="region-list"></datalist>
+      <div class="init-status" id="region-init-status">リージョン一覧を取得中...</div>
+    </div>
+
+    <div class="field-group">
+      <label class="checkbox-row">
+        <input type="checkbox" id="include-adjacent">
+        隣接リージョンも含める
+      </label>
+    </div>
+
+    <div class="field-group">
+      <span class="field-label">ジャンプ数上限</span>
+      <div class="unit-input">
+        <input type="number" id="max-jumps" placeholder="指定なし" min="0">
+        <span class="unit">jumps</span>
+      </div>
+    </div>
+
+    <div class="field-group">
+      <span class="field-label">セキュリティステータス</span>
+      <div class="stack">
+        <label class="checkbox-row">
+          <input type="checkbox" id="sec-high" checked>
+          ハイセック (0.5以上)
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="sec-low" checked>
+          ローセック (0.1〜0.4)
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="sec-null" checked>
+          ヌルセック (0.0以下)
+        </label>
+      </div>
+    </div>
+
+    <div class="field-group">
+      <span class="field-label">売り注文の単価フィルター</span>
+      <div class="row-2">
+        <div class="unit-input">
+          <input type="number" id="min-price" placeholder="下限" min="0">
+          <span class="unit">ISK</span>
+        </div>
+        <div class="unit-input">
+          <input type="number" id="max-price" placeholder="上限" min="0">
+          <span class="unit">ISK</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="field-group">
+      <span class="field-label">計算方式</span>
+      <div class="mode-toggle">
+        <button type="button" class="active" data-mode="simple">価格差のみ</button>
+        <button type="button" data-mode="profit">利益考慮</button>
+      </div>
+
+      <div class="advanced-fields" id="profit-fields">
+        <div class="stack">
+          <div class="unit-input">
+            <input type="number" id="cargo-capacity" placeholder="積載量" min="0">
+            <span class="unit">m³</span>
+          </div>
+          <div class="unit-input">
+            <input type="number" id="budget" placeholder="手持ち資金" min="0">
+            <span class="unit">ISK</span>
+          </div>
+          <div class="unit-input">
+            <input type="number" id="tax-rate" placeholder="税率" min="0" max="100" step="0.1">
+            <span class="unit">%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="auth-block">
+      <div class="auth-state" id="auth-state">未ログイン — 公開マーケットデータのみ使用</div>
+
+      <div id="auth-setup">
+        <label class="field-label" style="margin-top:10px;">EVE Developer Client ID</label>
+        <input type="text" id="client-id-input" placeholder="Client IDを入力">
+        <div class="init-status" id="redirect-uri-hint"></div>
+      </div>
+
+      <button type="button" class="btn-sso" id="sso-btn">EVE SSO でログイン</button>
+      <button type="button" class="btn-sso" id="logout-btn" style="display:none;">ログアウト</button>
+
+      <div class="auth-skills" id="auth-skills" style="display:none;"></div>
+    </div>
+
+    <div class="field-group" id="structures-block" style="display:none;">
+      <span class="field-label">建造物(Citadel)マーケットを追加</span>
+      <div class="row-2">
+        <input type="text" id="structure-id-input" placeholder="Structure ID">
+        <button type="button" class="btn-sso" id="add-structure-btn">追加</button>
+      </div>
+      <div id="structures-list"></div>
+    </div>
+
+    <button type="button" class="btn-primary" id="run-btn">探索実行</button>
+    <div class="init-status" id="run-status" style="text-align:center; margin-top:8px;"></div>
+
+  </aside>
+
+  <!-- ===================== MAIN / RESULTS ===================== -->
+  <main class="panel-main">
+    <h2>探索結果</h2>
+    <p class="subtitle">左のパネルで条件を設定し、「探索実行」を押してください。</p>
+
+    <div class="error-banner" id="error-banner"></div>
+    <div class="progress-line" id="progress-line"></div>
+
+    <div class="empty-state" id="empty-state">
+      <div class="glyph">◇ ◇ ◇</div>
+      まだ探索は実行されていません。<br>
+      条件を設定して実行すると、ここに交易ルート候補が表示されます。
+    </div>
+
+    <table class="results" id="results-table" style="display:none">
+      <thead>
+        <tr>
+          <th>アイテム</th>
+          <th>出発ステーション</th>
+          <th>到着ステーション</th>
+          <th>ジャンプ数</th>
+          <th>仕入価格</th>
+          <th>売却価格</th>
+          <th>単価差益</th>
+          <th>推奨数量</th>
+          <th>合計利益</th>
+        </tr>
+      </thead>
+      <tbody id="results-body"></tbody>
+    </table>
+
+    <div class="starmap-panel">
+      <div class="teaser-label">
+        <span>スターマップから選択</span>
+        <button type="button" class="btn-toggle-map" id="starmap-toggle-btn">開く</button>
+      </div>
+
+      <div class="starmap-body" id="starmap-body">
+        <div class="starmap-controls">
+          <div class="target-toggle">
+            <button type="button" class="active" data-target="origin">出発地点を選ぶ</button>
+            <button type="button" data-target="dest">到着地点を選ぶ</button>
+          </div>
+          <div class="starmap-legend">
+            <span><span class="dot origin"></span>出発</span>
+            <span><span class="dot dest"></span>到着</span>
+          </div>
+        </div>
+        <div class="starmap-sec-legend">
+          <span><span class="dot high"></span>ハイセック</span>
+          <span><span class="dot low"></span>ローセック</span>
+          <span><span class="dot null"></span>ヌルセック</span>
+        </div>
+        <div class="starmap-status" id="starmap-status">まだ座標データを読み込んでいません。</div>
+        <div class="starmap-viewport">
+          <svg class="starmap" id="starmap-svg" viewBox="0 0 1400 900"></svg>
+          <div class="starmap-zoom-controls">
+            <button type="button" id="zoom-in-btn" title="拡大">+</button>
+            <button type="button" id="zoom-out-btn" title="縮小">−</button>
+            <button type="button" id="zoom-reset-btn" title="表示をリセット">⟲</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<footer>
+  new-eden-trade-finder — client-side only / ESI (EVE Swagger Interface) 利用 — データはブラウザ内でのみ処理されます
+</footer>
+
+<script>
+  const ESI_BASE = 'https://esi.evetech.net/latest';
+
+  // EVE SDE (Static Data Export) の mapRegionJumps テーブルより: リージョン間の正確な隣接ペア(fromRegionID, toRegionID)
+  // Fuzzwork (https://www.fuzzwork.co.uk/dump/latest/) が配布するCSVから変換して埋め込み(実行時のAPI呼び出し不要)
+const REGION_ADJACENCY = [
+  [10000001,10000011],
+  [10000001,10000012],
+  [10000001,10000028],
+  [10000001,10000030],
+  [10000001,10000036],
+  [10000001,10000047],
+  [10000002,10000003],
+  [10000002,10000016],
+  [10000002,10000027],
+  [10000002,10000029],
+  [10000002,10000032],
+  [10000002,10000033],
+  [10000002,10000042],
+  [10000002,10000067],
+  [10000003,10000010],
+  [10000003,10000029],
+  [10000003,10000034],
+  [10000005,10000006],
+  [10000005,10000009],
+  [10000005,10000025],
+  [10000005,10000061],
+  [10000006,10000008],
+  [10000006,10000009],
+  [10000007,10000009],
+  [10000007,10000011],
+  [10000007,10000018],
+  [10000007,10000021],
+  [10000008,10000009],
+  [10000008,10000011],
+  [10000008,10000012],
+  [10000009,10000018],
+  [10000009,10000027],
+  [10000010,10000015],
+  [10000010,10000016],
+  [10000010,10000023],
+  [10000011,10000012],
+  [10000011,10000027],
+  [10000011,10000028],
+  [10000011,10000029],
+  [10000011,10000042],
+  [10000012,10000014],
+  [10000012,10001000],
+  [10000013,10000018],
+  [10000013,10000027],
+  [10000013,10000034],
+  [10000013,10000040],
+  [10000013,10000066],
+  [10000014,10000022],
+  [10000014,10000025],
+  [10000014,10000031],
+  [10000014,10000047],
+  [10000014,10000049],
+  [10000014,10000050],
+  [10000014,10000061],
+  [10000015,10000035],
+  [10000015,10000045],
+  [10000015,10000055],
+  [10000015,10000066],
+  [10000015,10001000],
+  [10000016,10000023],
+  [10000016,10000033],
+  [10000016,10000069],
+  [10000018,10000021],
+  [10000018,10000027],
+  [10000018,10000040],
+  [10000018,10000066],
+  [10000020,10000022],
+  [10000020,10000043],
+  [10000020,10000047],
+  [10000020,10000049],
+  [10000020,10000052],
+  [10000021,10000053],
+  [10000021,10000066],
+  [10000022,10000039],
+  [10000022,10000063],
+  [10000023,10000046],
+  [10000023,10000048],
+  [10000023,10000051],
+  [10000025,10000061],
+  [10000027,10000034],
+  [10000027,10000066],
+  [10000028,10000030],
+  [10000028,10000042],
+  [10000029,10000034],
+  [10000029,10000042],
+  [10000030,10000032],
+  [10000030,10000036],
+  [10000030,10000038],
+  [10000030,10000042],
+  [10000031,10000056],
+  [10000031,10000061],
+  [10000032,10000033],
+  [10000032,10000037],
+  [10000032,10000038],
+  [10000032,10000042],
+  [10000032,10000043],
+  [10000032,10000064],
+  [10000032,10000067],
+  [10000033,10000064],
+  [10000033,10000067],
+  [10000033,10000068],
+  [10000033,10000069],
+  [10000035,10000046],
+  [10000035,10000055],
+  [10000036,10000038],
+  [10000036,10000043],
+  [10000036,10000047],
+  [10000037,10000064],
+  [10000037,10000067],
+  [10000038,10000042],
+  [10000038,10000043],
+  [10000039,10000056],
+  [10000039,10000059],
+  [10000040,10000053],
+  [10000040,10000066],
+  [10000041,10000044],
+  [10000041,10000048],
+  [10000041,10000051],
+  [10000041,10000057],
+  [10000041,10000068],
+  [10000042,10000067],
+  [10000042,10001000],
+  [10000043,10000047],
+  [10000043,10000052],
+  [10000043,10000065],
+  [10000044,10000048],
+  [10000044,10000054],
+  [10000045,10000053],
+  [10000045,10000055],
+  [10000046,10000051],
+  [10000048,10000051],
+  [10000048,10000064],
+  [10000048,10000068],
+  [10000048,10000069],
+  [10000048,10001000],
+  [10000049,10000050],
+  [10000049,10000054],
+  [10000049,10000065],
+  [10000050,10000060],
+  [10000051,10000057],
+  [10000051,10000058],
+  [10000051,10000069],
+  [10000052,10000065],
+  [10000052,10000067],
+  [10000054,10000058],
+  [10000054,10000060],
+  [10000054,10000065],
+  [10000054,10000067],
+  [10000056,10000061],
+  [10000056,10000062],
+  [10000057,10000058],
+  [10000058,10000060],
+  [10000059,10000063],
+  [10000060,10000063],
+  [10000061,10000062],
+  [10000064,10000067],
+  [10000064,10000068],
+  [10000064,10000069],
+  [10000065,10000067],
+  [10000067,10000068],
+  [10000067,10001004],
+];
+
+
+  // ---- グローバル状態 ----
+  const state = {
+    regionNameToId: new Map(),   // "The Forge" -> 10000002
+    regionIdToName: new Map(),
+    stationNameCache: new Map(), // location_id -> name (resolved lazily)
+    starmapLoaded: false,
+    starmapTarget: 'origin',     // 'origin' | 'dest' — マップクリックがどちらの入力欄に反映されるか
+    starmapCircles: new Map(),   // region_id -> <circle> DOM要素
+    auth: {
+      accessToken: null,
+      accessTokenExpiresAt: 0,   // epochミリ秒
+      characterId: null,
+      characterName: null,
+    },
+    skillTypeIds: null,          // { accounting, brokerRelations } (遅延解決してキャッシュ)
+    systemRegionCache: new Map(), // system_id -> region_id (建造物のリージョン判定用)
+    addedStructures: new Map(),  // structure_id -> { name, systemId, regionId }
+  };
+
+  // ================= EVE SSO (PKCE, ポップアップ方式) =================
+
+  const SSO_AUTHORIZE_URL = 'https://login.eveonline.com/v2/oauth/authorize/';
+  const SSO_TOKEN_URL = 'https://login.eveonline.com/v2/oauth/token';
+  const SSO_SCOPES = 'esi-skills.read_skills.v1 esi-markets.structure_markets.v1 esi-universe.read_structures.v1';
+
+  function getClientId() {
+    return document.getElementById('client-id-input').value.trim();
+  }
+
+  function randomString(length) {
+    const bytes = new Uint8Array(length);
+    crypto.getRandomValues(bytes);
+    return [...bytes].map(b => ('0' + b.toString(16)).slice(-2)).join('').slice(0, length);
+  }
+
+  function base64UrlEncode(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    for (const b of bytes) binary += String.fromCharCode(b);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  async function sha256(text) {
+    const data = new TextEncoder().encode(text);
+    return crypto.subtle.digest('SHA-256', data);
+  }
+
+  function decodeJwtPayload(token) {
+    const payload = token.split('.')[1];
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(json);
+  }
+
+  function redirectUri() {
+    return window.location.origin + window.location.pathname;
+  }
+
+  async function startLogin() {
+    const clientId = getClientId();
+    if (!clientId) {
+      showAuthMessage('Client IDを入力してください(下の案内を参考にEVE Developerでアプリケーションを登録してください)');
+      return;
+    }
+    localStorage.setItem('eve_client_id', clientId);
+
+    const verifier = randomString(64);
+    const challenge = base64UrlEncode(await sha256(verifier));
+    const stateParam = randomString(16);
+    localStorage.setItem('eve_pkce_verifier', verifier);
+    localStorage.setItem('eve_pkce_state', stateParam);
+
+    const params = new URLSearchParams({
+      response_type: 'code',
+      redirect_uri: redirectUri(),
+      client_id: clientId,
+      scope: SSO_SCOPES,
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+      state: stateParam,
+    });
+
+    const popup = window.open(`${SSO_AUTHORIZE_URL}?${params.toString()}`, 'eve-sso-login', 'width=460,height=680');
+    if (!popup) {
+      showAuthMessage('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
+    }
+  }
+
+  // ポップアップ側(EVE SSOからのリダイレクト先)としてこのページが再読み込みされた場合の処理
+  async function handleSsoCallbackIfPresent() {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const returnedState = params.get('state');
+    if (!code) return;
+
+    const expectedState = localStorage.getItem('eve_pkce_state');
+    const verifier = localStorage.getItem('eve_pkce_verifier');
+    localStorage.removeItem('eve_pkce_state');
+    localStorage.removeItem('eve_pkce_verifier');
+
+    const fail = (message) => {
+      if (window.opener) {
+        window.opener.postMessage({ type: 'eve-sso-error', message }, window.location.origin);
+        window.close();
+      }
+    };
+
+    if (!verifier || returnedState !== expectedState) {
+      fail('認証状態の検証に失敗しました(state不一致)');
+      return;
+    }
+
+    try {
+      const clientId = localStorage.getItem('eve_client_id');
+      const tokenRes = await fetch(SSO_TOKEN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code,
+          client_id: clientId,
+          code_verifier: verifier,
+        }),
+      });
+      if (!tokenRes.ok) throw new Error(`トークン取得に失敗しました (${tokenRes.status})`);
+      const tokenData = await tokenRes.json();
+
+      const payload = decodeJwtPayload(tokenData.access_token);
+      const characterId = payload.sub.split(':').pop();
+      const characterName = payload.name;
+
+      localStorage.setItem('eve_refresh_token', tokenData.refresh_token);
+      localStorage.setItem('eve_character_id', characterId);
+      localStorage.setItem('eve_character_name', characterName);
+
+      if (window.opener) {
+        window.opener.postMessage({ type: 'eve-sso-success' }, window.location.origin);
+        window.close();
+      } else {
+        // ポップアップがブロックされ、直接このページで認証が完結した場合のフォールバック
+        history.replaceState({}, '', window.location.pathname);
+        await onLoginSuccess();
+      }
+    } catch (e) {
+      fail(e.message);
+    }
+  }
+
+  window.addEventListener('message', (e) => {
+    if (e.origin !== window.location.origin) return;
+    if (e.data?.type === 'eve-sso-success') {
+      onLoginSuccess();
+    } else if (e.data?.type === 'eve-sso-error') {
+      showAuthMessage('ログインに失敗しました: ' + e.data.message);
+    }
+  });
+
+  // 有効なアクセストークンを返す(必要ならリフレッシュトークンで更新)。未ログインならnull。
+  async function ensureAccessToken() {
+    const now = Date.now();
+    if (state.auth.accessToken && now < state.auth.accessTokenExpiresAt - 60000) {
+      return state.auth.accessToken;
+    }
+    const refreshToken = localStorage.getItem('eve_refresh_token');
+    const clientId = localStorage.getItem('eve_client_id');
+    if (!refreshToken || !clientId) return null;
+
+    try {
+      const res = await fetch(SSO_TOKEN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken, client_id: clientId }),
+      });
+      if (!res.ok) throw new Error('リフレッシュ失敗');
+      const data = await res.json();
+      state.auth.accessToken = data.access_token;
+      state.auth.accessTokenExpiresAt = Date.now() + data.expires_in * 1000;
+      if (data.refresh_token) localStorage.setItem('eve_refresh_token', data.refresh_token);
+      return state.auth.accessToken;
+    } catch (e) {
+      console.warn('トークンのリフレッシュに失敗しました', e);
+      return null;
+    }
+  }
+
+  async function apiAuthFetch(url) {
+    const token = await ensureAccessToken();
+    if (!token) throw new Error('ログインが必要です');
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error(`認証付きAPIリクエストが失敗しました (${res.status}): ${url}`);
+    return res;
+  }
+
+  function showAuthMessage(msg) {
+    const el = document.getElementById('redirect-uri-hint');
+    el.textContent = msg;
+    el.classList.add('error');
+  }
+
+  async function onLoginSuccess() {
+    state.auth.characterId = localStorage.getItem('eve_character_id');
+    state.auth.characterName = localStorage.getItem('eve_character_name');
+    document.getElementById('auth-state').textContent = `ログイン中: ${state.auth.characterName}`;
+    document.getElementById('auth-setup').style.display = 'none';
+    document.getElementById('sso-btn').style.display = 'none';
+    document.getElementById('logout-btn').style.display = 'block';
+    document.getElementById('structures-block').style.display = 'block';
+
+    await ensureAccessToken();
+    await loadCharacterSkills();
+    renderStructureList();
+  }
+
+  function logout() {
+    localStorage.removeItem('eve_refresh_token');
+    localStorage.removeItem('eve_character_id');
+    localStorage.removeItem('eve_character_name');
+    state.auth.accessToken = null;
+    state.auth.accessTokenExpiresAt = 0;
+    state.auth.characterId = null;
+    state.auth.characterName = null;
+
+    document.getElementById('auth-state').textContent = '未ログイン — 公開マーケットデータのみ使用';
+    document.getElementById('auth-setup').style.display = 'block';
+    document.getElementById('sso-btn').style.display = 'block';
+    document.getElementById('logout-btn').style.display = 'none';
+    document.getElementById('structures-block').style.display = 'none';
+    document.getElementById('auth-skills').style.display = 'none';
+  }
+
+  // ================= スキル取得(Accounting / Broker Relations) =================
+
+  async function loadCharacterSkills() {
+    const skillsEl = document.getElementById('auth-skills');
+    skillsEl.style.display = 'block';
+    skillsEl.textContent = 'スキル情報を取得中...';
+
+    try {
+      if (!state.skillTypeIds) {
+        const res = await fetch(`${ESI_BASE}/universe/ids/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(['Accounting', 'Broker Relations']),
+        });
+        const data = await res.json();
+        const types = data.inventory_types ?? [];
+        state.skillTypeIds = {
+          accounting: types.find(t => t.name === 'Accounting')?.id,
+          brokerRelations: types.find(t => t.name === 'Broker Relations')?.id,
+        };
+      }
+
+      const skillsRes = await apiAuthFetch(`${ESI_BASE}/characters/${state.auth.characterId}/skills/`);
+      const skillsData = await skillsRes.json();
+      const findLevel = (typeId) => skillsData.skills?.find(s => s.skill_id === typeId)?.trained_skill_level ?? 0;
+
+      const accountingLv = findLevel(state.skillTypeIds.accounting);
+      const brokerLv = findLevel(state.skillTypeIds.brokerRelations);
+
+      const salesTaxPct = Math.max(0, 7.5 * (1 - 0.11 * accountingLv));
+      const brokerFeePct = Math.max(1, 3 - 0.3 * brokerLv);
+
+      skillsEl.innerHTML = `
+        Accounting Lv.${accountingLv} → サールタックス自動設定: <span class="skill-value">${salesTaxPct.toFixed(2)}%</span><br>
+        Broker Relations Lv.${brokerLv} → 発注時ブローカー手数料(参考): <span class="skill-value">${brokerFeePct.toFixed(2)}%</span>
+      `;
+
+      // 単価フィルターと違い、税率は「売却時に必ず引かれるサールタックス」を自動反映する
+      document.getElementById('tax-rate').value = salesTaxPct.toFixed(2);
+    } catch (e) {
+      console.error(e);
+      skillsEl.textContent = 'スキル情報の取得に失敗しました。esi-skills.read_skills.v1 のスコープが許可されているか確認してください。';
+    }
+  }
+
+  // ================= 建造物(Citadel)マーケット =================
+
+  // システムが属するリージョンIDを解決(システム→コンステレーション→リージョンの2段階)
+  async function resolveRegionOfSystem(systemId) {
+    if (state.systemRegionCache.has(systemId)) return state.systemRegionCache.get(systemId);
+    const sysRes = await esiGetJson(`${ESI_BASE}/universe/systems/${systemId}/`);
+    const sys = await sysRes.json();
+    const consRes = await esiGetJson(`${ESI_BASE}/universe/constellations/${sys.constellation_id}/`);
+    const cons = await consRes.json();
+    state.systemRegionCache.set(systemId, cons.region_id);
+    return cons.region_id;
+  }
+
+  async function addStructure(structureIdRaw) {
+    const structureId = Number(structureIdRaw);
+    if (!structureId || state.addedStructures.has(structureId)) return;
+
+    try {
+      const res = await apiAuthFetch(`${ESI_BASE}/universe/structures/${structureId}/`);
+      const data = await res.json();
+      const regionId = await resolveRegionOfSystem(data.solar_system_id);
+      state.addedStructures.set(structureId, { name: data.name, systemId: data.solar_system_id, regionId });
+      renderStructureList();
+    } catch (e) {
+      showError('建造物情報の取得に失敗しました。IDが正しいか、その建造物にドッキング権限があるかご確認ください。');
+    }
+  }
+
+  function renderStructureList() {
+    const listEl = document.getElementById('structures-list');
+    listEl.innerHTML = '';
+    for (const [id, s] of state.addedStructures) {
+      const chip = document.createElement('div');
+      chip.className = 'structure-chip';
+      const regionName = state.regionIdToName.get(s.regionId) ?? '不明なリージョン';
+      chip.innerHTML = `
+        <span class="chip-name" title="${s.name}">${s.name}(${regionName})</span>
+        <button type="button" class="chip-remove" data-id="${id}">×</button>
+      `;
+      chip.querySelector('.chip-remove').addEventListener('click', () => {
+        state.addedStructures.delete(id);
+        renderStructureList();
+      });
+      listEl.appendChild(chip);
+    }
+  }
+
+  // 指定した建造物の全マーケットオーダーを取得(要認証、order_type絞り込み非対応なので取得後に分類する)
+  async function fetchAllStructureOrders(structureId, onProgress) {
+    const firstRes = await apiAuthFetch(`${ESI_BASE}/markets/structures/${structureId}/?page=1`);
+    const firstData = await firstRes.json();
+    const totalPages = parseInt(firstRes.headers.get('x-pages') || '1', 10);
+    let all = [...firstData];
+    if (onProgress) onProgress(1, totalPages);
+    if (totalPages > 1) {
+      const rest = await Promise.all(
+        Array.from({ length: totalPages - 1 }, (_, i) =>
+          apiAuthFetch(`${ESI_BASE}/markets/structures/${structureId}/?page=${i + 2}`)
+            .then(res => res.json())
+            .then(data => { if (onProgress) onProgress(i + 2, totalPages); return data; })
+        )
+      );
+      rest.forEach(d => { all = all.concat(d); });
+    }
+    return all;
+  }
+
+  document.getElementById('sso-btn').addEventListener('click', startLogin);
+  document.getElementById('logout-btn').addEventListener('click', logout);
+  document.getElementById('add-structure-btn').addEventListener('click', () => {
+    const input = document.getElementById('structure-id-input');
+    addStructure(input.value.trim());
+    input.value = '';
+  });
+
+  // ページ読み込み時: Client ID/リダイレクト先URLの表示、ログインコールバック処理、既存セッションの復元
+  (function initAuthUi() {
+    const savedClientId = localStorage.getItem('eve_client_id');
+    if (savedClientId) document.getElementById('client-id-input').value = savedClientId;
+    document.getElementById('redirect-uri-hint').textContent = `Callback URLに設定: ${redirectUri()}`;
+  })();
+
+  handleSsoCallbackIfPresent();
+
+  // 前回セッションが残っていれば自動的にログイン状態を復元
+  (async function restoreSession() {
+    if (window.opener) return; // ポップアップ自身では復元処理をしない
+    const refreshToken = localStorage.getItem('eve_refresh_token');
+    if (refreshToken && localStorage.getItem('eve_character_id')) {
+      await onLoginSuccess();
+    }
+  })();
+
+  // ================= ユーティリティ =================
+
+  async function esiGetJson(url) {
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`ESI request failed (${res.status}): ${url}`);
+    }
+    return res;
+  }
+
+  // /universe/names/ は一度に最大1000件までIDを名前解決できる
+  async function resolveNames(ids) {
+    const unique = [...new Set(ids)].filter(id => id != null);
+    if (unique.length === 0) return [];
+    const chunks = [];
+    for (let i = 0; i < unique.length; i += 1000) {
+      chunks.push(unique.slice(i, i + 1000));
+    }
+    const results = [];
+    for (const chunk of chunks) {
+      try {
+        const res = await fetch(`${ESI_BASE}/universe/names/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(chunk),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          results.push(...data);
+        }
+      } catch (e) {
+        console.warn('resolveNames chunk failed', e);
+      }
+    }
+    return results;
+  }
+
+  // NPCステーション名の解決(citadel/構造物はここでは名前解決できないためフォールバック)
+  async function resolveStationName(locationId) {
+    if (state.stationNameCache.has(locationId)) {
+      return state.stationNameCache.get(locationId);
+    }
+    // 構造物(citadel)のIDはNPCステーションのID帯より大きい
+    if (locationId >= 1_000_000_000_000) {
+      // ログイン中なら、ドッキング権限がある建造物については実名を解決できる
+      const token = await ensureAccessToken();
+      if (token) {
+        try {
+          const res = await fetch(`${ESI_BASE}/universe/structures/${locationId}/`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            state.stationNameCache.set(locationId, data.name);
+            return data.name;
+          }
+        } catch (e) { /* 権限が無い場合など。下のフォールバック表記を使う */ }
+      }
+      const label = `建造物 #${locationId} (要認証)`;
+      state.stationNameCache.set(locationId, label);
+      return label;
+    }
+    try {
+      const res = await esiGetJson(`${ESI_BASE}/universe/stations/${locationId}/`);
+      const data = await res.json();
+      state.stationNameCache.set(locationId, data.name);
+      return data.name;
+    } catch (e) {
+      const label = `ステーション #${locationId}`;
+      state.stationNameCache.set(locationId, label);
+      return label;
+    }
+  }
+
+  // 全ページのマーケットオーダーを取得
+  async function fetchAllOrders(regionId, orderType, onProgress) {
+    const firstUrl = `${ESI_BASE}/markets/${regionId}/orders/?order_type=${orderType}&page=1`;
+    const firstRes = await esiGetJson(firstUrl);
+    const firstData = await firstRes.json();
+    const totalPages = parseInt(firstRes.headers.get('x-pages') || '1', 10);
+
+    let all = [...firstData];
+    if (onProgress) onProgress(1, totalPages);
+
+    if (totalPages > 1) {
+      const pagePromises = [];
+      for (let p = 2; p <= totalPages; p++) {
+        pagePromises.push(
+          esiGetJson(`${ESI_BASE}/markets/${regionId}/orders/?order_type=${orderType}&page=${p}`)
+            .then(res => res.json())
+            .then(data => { if (onProgress) onProgress(p, totalPages); return data; })
+        );
+      }
+      const rest = await Promise.all(pagePromises);
+      rest.forEach(d => { all = all.concat(d); });
+    }
+    return all;
+  }
+
+  // 型ID(アイテム)の梱包体積を取得
+  async function fetchTypeVolume(typeId) {
+    try {
+      const res = await esiGetJson(`${ESI_BASE}/universe/types/${typeId}/`);
+      const data = await res.json();
+      return data.packaged_volume ?? data.volume ?? null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ================= 初期化: リージョン一覧取得 =================
+
+  async function initRegions() {
+    const statusEl = document.getElementById('region-init-status');
+    try {
+      const res = await esiGetJson(`${ESI_BASE}/universe/regions/`);
+      const ids = await res.json();
+      // ワームホール/未使用リージョン等を除外するため、名前解決できたものだけ採用
+      const named = await resolveNames(ids);
+      const regions = named.filter(n => n.category === 'region');
+
+      const datalist = document.getElementById('region-list');
+      regions
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .forEach(r => {
+          state.regionNameToId.set(r.name, r.id);
+          state.regionIdToName.set(r.id, r.name);
+          const opt = document.createElement('option');
+          opt.value = r.name;
+          datalist.appendChild(opt);
+        });
+
+      statusEl.textContent = `${regions.length} リージョンを読み込み済み`;
+      statusEl.classList.add('ok');
+
+      document.getElementById('esi-status-dot').classList.replace('offline', 'online');
+      document.getElementById('esi-status-text').textContent = 'ESI接続OK';
+    } catch (e) {
+      console.error(e);
+      statusEl.textContent = 'リージョン一覧の取得に失敗しました(ネットワーク設定をご確認ください)';
+      statusEl.classList.add('error');
+      document.getElementById('esi-status-text').textContent = 'ESI接続エラー';
+    }
+  }
+
+  initRegions();
+
+  // ================= スターマップ =================
+
+  // リージョンの代表座標とセキュリティステータスを取得
+  // リージョン詳細 → 先頭のコンステレーション → その座標(x,z)と、先頭システムのセキュリティステータスを採用
+  // (リージョン自体には座標・セキュリティ情報がないため、代表点のデータを利用する簡易的な近似)
+  async function fetchRegionPosition(regionId) {
+    try {
+      const regionRes = await esiGetJson(`${ESI_BASE}/universe/regions/${regionId}/`);
+      const region = await regionRes.json();
+      const constellationId = region.constellations?.[0];
+      if (!constellationId) return null;
+
+      const consRes = await esiGetJson(`${ESI_BASE}/universe/constellations/${constellationId}/`);
+      const cons = await consRes.json();
+
+      let security = null;
+      const systemId = cons.systems?.[0];
+      if (systemId) {
+        try {
+          const sysRes = await esiGetJson(`${ESI_BASE}/universe/systems/${systemId}/`);
+          const sys = await sysRes.json();
+          security = sys.security_status;
+        } catch (e) { /* セキュリティ取得失敗時はnullのまま扱う */ }
+      }
+
+      return { x: cons.position.x, z: cons.position.z, security };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function loadStarmapData() {
+    const statusEl = document.getElementById('starmap-status');
+    const ids = [...state.regionIdToName.keys()];
+    let done = 0;
+    statusEl.textContent = `座標データを取得中... (0/${ids.length})`;
+
+    const positions = new Map();
+    await runWithConcurrency(ids, 15, async (id) => {
+      const pos = await fetchRegionPosition(id);
+      if (pos) positions.set(id, pos);
+      done++;
+      statusEl.textContent = `座標データを取得中... (${done}/${ids.length})`;
+    });
+
+    statusEl.textContent = 'レイアウトを計算中...';
+    // EVE SDE (mapRegionJumps) 由来の正確な隣接データを使用(実際に存在するリージョン同士のみに絞り込む)
+    const edges = getAccurateAdjacency(positions);
+    // 実座標を初期値として、力学モデル(反発+ばね)でノードの重なりを解消する
+    const layout = runForceLayout(positions, edges);
+
+    renderStarmap(layout, edges);
+    state.starmapLoaded = true;
+    statusEl.textContent = `${positions.size} リージョンを表示中(線は実際のスターゲート接続に基づく正確な隣接関係です・ノードをクリックして選択)`;
+  }
+
+  // EVE SDE の mapRegionJumps データから、実際に座標が取得できたリージョンに絞って隣接ペアを返す
+  function getAccurateAdjacency(positions) {
+    return REGION_ADJACENCY.filter(([a, b]) => positions.has(a) && positions.has(b));
+  }
+
+  // リージョン名の長さから箱のサイズを決める(レイアウト計算・描画の両方で使う共通ロジック)
+  function computeBoxSize(name) {
+    const w = Math.max(56, Math.min(148, name.length * 5.6 + 18));
+    return { w, h: 20 };
+  }
+
+  // 反発力(ノード同士)+ばね力(近接ペア)+中心への弱い引力で、重なりを解消したレイアウトを作る
+  function runForceLayout(positions, edges, iterations = 220) {
+    const W = FULL_VIEWBOX.width, H = FULL_VIEWBOX.height, PAD = 70;
+    const ids = [...positions.keys()];
+
+    const xs = ids.map(id => positions.get(id).x);
+    const zs = ids.map(id => positions.get(id).z);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minZ = Math.min(...zs), maxZ = Math.max(...zs);
+
+    const nodes = new Map();
+    for (const id of ids) {
+      const p = positions.get(id);
+      const nx = (p.x - minX) / (maxX - minX || 1);
+      const nz = (p.z - minZ) / (maxZ - minZ || 1);
+      nodes.set(id, {
+        x: PAD + nx * (W - PAD * 2) + (Math.random() - 0.5) * 8,
+        y: H - PAD - nz * (H - PAD * 2) + (Math.random() - 0.5) * 8,
+      });
+    }
+
+    const REPEL = 4200;
+    const SPRING = 0.02;
+    const IDEAL_LEN = 78;
+    const CENTER = 0.002;
+
+    for (let iter = 0; iter < iterations; iter++) {
+      const forces = new Map(ids.map(id => [id, { x: 0, y: 0 }]));
+
+      for (let i = 0; i < ids.length; i++) {
+        for (let j = i + 1; j < ids.length; j++) {
+          const a = nodes.get(ids[i]), b = nodes.get(ids[j]);
+          const dx = a.x - b.x, dy = a.y - b.y;
+          const d2 = Math.max(dx * dx + dy * dy, 0.01);
+          const d = Math.sqrt(d2);
+          const f = REPEL / d2;
+          const fx = (dx / d) * f, fy = (dy / d) * f;
+          forces.get(ids[i]).x += fx; forces.get(ids[i]).y += fy;
+          forces.get(ids[j]).x -= fx; forces.get(ids[j]).y -= fy;
+        }
+      }
+
+      for (const [idA, idB] of edges) {
+        const a = nodes.get(idA), b = nodes.get(idB);
+        if (!a || !b) continue;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d = Math.max(Math.hypot(dx, dy), 0.01);
+        const f = SPRING * (d - IDEAL_LEN);
+        const fx = (dx / d) * f, fy = (dy / d) * f;
+        forces.get(idA).x += fx; forces.get(idA).y += fy;
+        forces.get(idB).x -= fx; forces.get(idB).y -= fy;
+      }
+
+      for (const id of ids) {
+        const n = nodes.get(id);
+        const f = forces.get(id);
+        f.x += (W / 2 - n.x) * CENTER;
+        f.y += (H / 2 - n.y) * CENTER;
+        n.x += Math.max(-8, Math.min(8, f.x));
+        n.y += Math.max(-8, Math.min(8, f.y));
+        // シミュレーション中は枠にクランプしない(壁に押し付けられて重なるのを防ぐ)。
+        // はみ出しは中心への弱い引力で抑えつつ、最終的に下でまとめて枠内へ正規化する。
+      }
+    }
+
+    // シミュレーション結果全体をキャンバスの表示範囲にきれいに収める(端で潰れないよう、クランプではなく正規化)
+    const finalXs = ids.map(id => nodes.get(id).x);
+    const finalYs = ids.map(id => nodes.get(id).y);
+    const fMinX = Math.min(...finalXs), fMaxX = Math.max(...finalXs);
+    const fMinY = Math.min(...finalYs), fMaxY = Math.max(...finalYs);
+    const scaleX = (W - PAD * 2) / (fMaxX - fMinX || 1);
+    const scaleY = (H - PAD * 2) / (fMaxY - fMinY || 1);
+    const scale = Math.min(scaleX, scaleY); // 縦横比を保ったまま、収まる方に合わせる
+
+    const result = new Map();
+    for (const id of ids) {
+      const n = nodes.get(id);
+      result.set(id, {
+        x: PAD + (n.x - fMinX) * scale + (W - PAD * 2 - (fMaxX - fMinX) * scale) / 2,
+        y: PAD + (n.y - fMinY) * scale + (H - PAD * 2 - (fMaxY - fMinY) * scale) / 2,
+        security: positions.get(id).security,
+      });
+    }
+
+    // 力学シミュレーションは「点」として計算しているため、テキストの長さで幅が変わる
+    // 実際の箱同士は、点としては十分離れていても重なることがある。
+    // 最後に実際の箱サイズをもとにした重なり解消パスを重ねて、視覚的な重なりを解消する。
+    resolveBoxOverlaps(result, ids);
+
+    return result;
+  }
+
+  function resolveBoxOverlaps(result, ids, iterations = 200) {
+    const MARGIN = 6; // 箱同士の最低限の隙間
+    const sizes = new Map(ids.map(id => [id, computeBoxSize(state.regionIdToName.get(id) ?? '')]));
+
+    for (let iter = 0; iter < iterations; iter++) {
+      let moved = false;
+      for (let i = 0; i < ids.length; i++) {
+        for (let j = i + 1; j < ids.length; j++) {
+          const idA = ids[i], idB = ids[j];
+          const a = result.get(idA), b = result.get(idB);
+          const sizeA = sizes.get(idA), sizeB = sizes.get(idB);
+
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const overlapX = (sizeA.w / 2 + sizeB.w / 2 + MARGIN) - Math.abs(dx);
+          const overlapY = (sizeA.h / 2 + sizeB.h / 2 + MARGIN) - Math.abs(dy);
+
+          // 矩形として、x方向・y方向どちらも重なっている場合のみ「重なり」とみなす
+          if (overlapX > 0 && overlapY > 0) {
+            moved = true;
+            // 重なりが小さい方の軸に沿って押し離す(自然な見た目になりやすいため)
+            if (overlapX < overlapY) {
+              const push = (overlapX / 2 + 0.5) * (dx >= 0 ? 1 : -1);
+              a.x -= push; b.x += push;
+            } else {
+              const push = (overlapY / 2 + 0.5) * (dy >= 0 ? 1 : -1);
+              a.y -= push; b.y += push;
+            }
+          }
+        }
+      }
+      if (!moved) break; // 重なりが無くなったら早期終了
+    }
+  }
+
+  function renderStarmap(layout, edges) {
+    const svg = document.getElementById('starmap-svg');
+    const NS = 'http://www.w3.org/2000/svg';
+    svg.innerHTML = '';
+    state.starmapCircles.clear();
+
+    // 接続線(ノードより下に来るよう先に描画)
+    const edgeGroup = document.createElementNS(NS, 'g');
+    edgeGroup.setAttribute('class', 'starmap-edges');
+    for (const [idA, idB] of edges) {
+      const a = layout.get(idA), b = layout.get(idB);
+      if (!a || !b) continue;
+      const line = document.createElementNS(NS, 'line');
+      line.setAttribute('class', 'region-edge');
+      line.setAttribute('x1', a.x.toFixed(1));
+      line.setAttribute('y1', a.y.toFixed(1));
+      line.setAttribute('x2', b.x.toFixed(1));
+      line.setAttribute('y2', b.y.toFixed(1));
+      edgeGroup.appendChild(line);
+    }
+    svg.appendChild(edgeGroup);
+
+    // ノード(リージョン名入りの箱)
+    for (const [regionId, pos] of layout) {
+      const name = state.regionIdToName.get(regionId) ?? `リージョン #${regionId}`;
+      const secCls = securityClass(pos.security) ?? 'unknown';
+      const { w: boxW, h: boxH } = computeBoxSize(name);
+
+      const group = document.createElementNS(NS, 'g');
+      group.setAttribute('class', 'region-group');
+      group.setAttribute('transform', `translate(${(pos.x - boxW / 2).toFixed(1)}, ${(pos.y - boxH / 2).toFixed(1)})`);
+
+      const rect = document.createElementNS(NS, 'rect');
+      rect.setAttribute('class', `region-box sec-${secCls}`);
+      rect.setAttribute('width', boxW.toFixed(1));
+      rect.setAttribute('height', boxH);
+      rect.setAttribute('rx', 5);
+      rect.setAttribute('ry', 5);
+      rect.dataset.regionId = regionId;
+
+      const text = document.createElementNS(NS, 'text');
+      text.setAttribute('class', 'region-box-label');
+      text.setAttribute('x', (boxW / 2).toFixed(1));
+      text.setAttribute('y', boxH / 2 + 3.4);
+      text.setAttribute('text-anchor', 'middle');
+      text.style.fontSize = name.length > 15 ? '7.3px' : '8.3px';
+      text.textContent = name;
+
+      group.addEventListener('click', () => {
+        if (dragMoved) return; // ドラッグ操作の終わりのクリックは選択として扱わない
+        handleStarmapClick(regionId, name);
+      });
+
+      group.appendChild(rect);
+      group.appendChild(text);
+      svg.appendChild(group);
+      state.starmapCircles.set(regionId, { rect });
+    }
+
+    // 現在入力欄に入っている選択状態をマップにも反映
+    syncStarmapSelectionFromInputs();
+  }
+
+  function handleStarmapClick(regionId, name) {
+    const inputId = state.starmapTarget === 'origin' ? 'origin-region' : 'dest-region';
+    document.getElementById(inputId).value = name;
+    syncStarmapSelectionFromInputs();
+  }
+
+  // 入力欄の現在値をもとに、マップ上のハイライト(sel-origin / sel-dest)を再計算
+  function syncStarmapSelectionFromInputs() {
+    const originId = state.regionNameToId.get(document.getElementById('origin-region').value.trim());
+    const destId = state.regionNameToId.get(document.getElementById('dest-region').value.trim());
+
+    for (const [regionId, nodes] of state.starmapCircles) {
+      nodes.rect.classList.toggle('sel-origin', regionId === originId);
+      nodes.rect.classList.toggle('sel-dest', regionId === destId);
+    }
+  }
+
+  // スターマップ開閉トグル
+  document.getElementById('starmap-toggle-btn').addEventListener('click', () => {
+    const body = document.getElementById('starmap-body');
+    const btn = document.getElementById('starmap-toggle-btn');
+    const expanding = !body.classList.contains('expanded');
+    body.classList.toggle('expanded', expanding);
+    btn.textContent = expanding ? '閉じる' : '開く';
+    if (expanding && !state.starmapLoaded) {
+      loadStarmapData();
+    }
+  });
+
+  // 出発/到着どちらを選ぶモードかの切り替え
+  document.querySelectorAll('.target-toggle button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.target-toggle button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.starmapTarget = btn.dataset.target;
+    });
+  });
+
+  // 入力欄を直接編集した場合もマップのハイライトに反映
+  document.getElementById('origin-region').addEventListener('change', syncStarmapSelectionFromInputs);
+  document.getElementById('dest-region').addEventListener('change', syncStarmapSelectionFromInputs);
+
+  // 同時実行数を制限しながら並列実行するヘルパー
+  async function runWithConcurrency(items, limit, worker) {
+    const results = new Array(items.length);
+    let index = 0;
+    async function next() {
+      while (index < items.length) {
+        const i = index++;
+        results[i] = await worker(items[i], i);
+      }
+    }
+    const runners = Array.from({ length: Math.min(limit, items.length) }, next);
+    await Promise.all(runners);
+    return results;
+  }
+
+  // システムIDからセキュリティステータスを取得(バルクAPIが無いため個別取得+同時実行制限)
+  async function fetchSecurityStatuses(systemIds, onProgress) {
+    const map = new Map();
+    let done = 0;
+    await runWithConcurrency(systemIds, 20, async (id) => {
+      try {
+        const res = await esiGetJson(`${ESI_BASE}/universe/systems/${id}/`);
+        const data = await res.json();
+        map.set(id, data.security_status);
+      } catch (e) {
+        map.set(id, null); // 取得失敗時はフィルター対象外として除外扱い
+      }
+      done++;
+      if (onProgress) onProgress(done, systemIds.length);
+    });
+    return map;
+  }
+
+  function securityClass(sec) {
+    if (sec == null) return null;
+    if (sec >= 0.45) return 'high'; // ESI上は0.45〜0.5未満も表示上0.5丸めになるため実質値で判定
+    if (sec >= 0.05) return 'low';
+    return 'null';
+  }
+
+  // 2システム間の最短ジャンプ数を取得(同一システムなら0)
+  const routeCache = new Map(); // "originSys-destSys" -> jumps
+  async function fetchJumpCount(originSystemId, destSystemId) {
+    if (originSystemId === destSystemId) return 0;
+    const key = `${originSystemId}-${destSystemId}`;
+    if (routeCache.has(key)) return routeCache.get(key);
+    try {
+      const res = await esiGetJson(`${ESI_BASE}/route/${originSystemId}/${destSystemId}/?flag=shortest`);
+      const path = await res.json();
+      const jumps = path.length - 1;
+      routeCache.set(key, jumps);
+      return jumps;
+    } catch (e) {
+      routeCache.set(key, null); // ルートが存在しない(ワームホール空間等)場合
+      return null;
+    }
+  }
+
+  // ---- ズーム・パン ----
+  const starmapSvg = document.getElementById('starmap-svg');
+  const FULL_VIEWBOX = { x: 0, y: 0, width: 1400, height: 900 };
+  let dragMoved = false; // ドラッグ量が一定を超えたら true(クリック=選択と誤判定しないため)
+
+  function getViewBox() {
+    const vb = starmapSvg.viewBox.baseVal;
+    return { x: vb.x, y: vb.y, width: vb.width, height: vb.height };
+  }
+  function setViewBox(vb) {
+    starmapSvg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.width} ${vb.height}`);
+  }
+  // 画面上の座標(clientX/Y)をSVGのユーザー座標に変換
+  function toSvgPoint(clientX, clientY) {
+    const rect = starmapSvg.getBoundingClientRect();
+    const vb = getViewBox();
+    return {
+      x: vb.x + ((clientX - rect.left) / rect.width) * vb.width,
+      y: vb.y + ((clientY - rect.top) / rect.height) * vb.height,
+    };
+  }
+
+  function zoomAt(point, factor) {
+    const vb = getViewBox();
+    const minW = FULL_VIEWBOX.width * 0.02;
+    const minH = FULL_VIEWBOX.height * 0.02;
+    const maxW = FULL_VIEWBOX.width * 1.5;
+    const maxH = FULL_VIEWBOX.height * 1.5;
+
+    let newWidth = Math.min(maxW, Math.max(minW, vb.width * factor));
+    let newHeight = Math.min(maxH, Math.max(minH, vb.height * factor));
+    const scaleX = newWidth / vb.width;
+    const scaleY = newHeight / vb.height;
+
+    let newX = point.x - (point.x - vb.x) * scaleX;
+    let newY = point.y - (point.y - vb.y) * scaleY;
+
+    // 全体表示の範囲から大きく外れすぎないようクランプ(多少の余白は許容)
+    const marginX = FULL_VIEWBOX.width * 0.4;
+    const marginY = FULL_VIEWBOX.height * 0.4;
+    newX = Math.min(FULL_VIEWBOX.x + FULL_VIEWBOX.width + marginX - newWidth, Math.max(FULL_VIEWBOX.x - marginX, newX));
+    newY = Math.min(FULL_VIEWBOX.y + FULL_VIEWBOX.height + marginY - newHeight, Math.max(FULL_VIEWBOX.y - marginY, newY));
+
+    setViewBox({ x: newX, y: newY, width: newWidth, height: newHeight });
+  }
+
+  function panBy(dxSvg, dySvg) {
+    const vb = getViewBox();
+    setViewBox({ x: vb.x - dxSvg, y: vb.y - dySvg, width: vb.width, height: vb.height });
+  }
+
+  document.getElementById('zoom-in-btn').addEventListener('click', () => {
+    const vb = getViewBox();
+    zoomAt({ x: vb.x + vb.width / 2, y: vb.y + vb.height / 2 }, 0.7);
+  });
+  document.getElementById('zoom-out-btn').addEventListener('click', () => {
+    const vb = getViewBox();
+    zoomAt({ x: vb.x + vb.width / 2, y: vb.y + vb.height / 2 }, 1 / 0.7);
+  });
+  document.getElementById('zoom-reset-btn').addEventListener('click', () => {
+    setViewBox({ ...FULL_VIEWBOX });
+  });
+
+  // マウスホイールでのズーム
+  starmapSvg.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 0.88 : 1 / 0.88;
+    zoomAt(toSvgPoint(e.clientX, e.clientY), factor);
+  }, { passive: false });
+
+  // マウスドラッグでのパン
+  let isPanningMouse = false;
+  let panStartClient = null;
+  let panStartViewBox = null;
+
+  starmapSvg.addEventListener('mousedown', (e) => {
+    isPanningMouse = true;
+    dragMoved = false;
+    panStartClient = { x: e.clientX, y: e.clientY };
+    panStartViewBox = getViewBox();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!isPanningMouse) return;
+    const rect = starmapSvg.getBoundingClientRect();
+    const dxPix = e.clientX - panStartClient.x;
+    const dyPix = e.clientY - panStartClient.y;
+    if (Math.hypot(dxPix, dyPix) > 4) dragMoved = true;
+    const dxSvg = (dxPix / rect.width) * panStartViewBox.width;
+    const dySvg = (dyPix / rect.height) * panStartViewBox.height;
+    setViewBox({ ...panStartViewBox, x: panStartViewBox.x - dxSvg, y: panStartViewBox.y - dySvg });
+  });
+  window.addEventListener('mouseup', () => {
+    isPanningMouse = false;
+    // クリック判定への影響を次のイベントループまで残してから解除
+    setTimeout(() => { dragMoved = false; }, 0);
+  });
+
+  // タッチ操作(1本指パン / 2本指ピンチズーム)
+  let touchMode = null; // 'pan' | 'pinch'
+  let touchStartViewBox = null;
+  let touchStartSingle = null;
+  let touchStartDistance = null;
+  let touchStartMid = null;
+
+  function touchDistance(t0, t1) {
+    return Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+  }
+  function touchMidpoint(t0, t1) {
+    return { x: (t0.clientX + t1.clientX) / 2, y: (t0.clientY + t1.clientY) / 2 };
+  }
+
+  starmapSvg.addEventListener('touchstart', (e) => {
+    touchStartViewBox = getViewBox();
+    dragMoved = false;
+    if (e.touches.length === 1) {
+      touchMode = 'pan';
+      touchStartSingle = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    } else if (e.touches.length === 2) {
+      touchMode = 'pinch';
+      touchStartDistance = touchDistance(e.touches[0], e.touches[1]);
+      touchStartMid = touchMidpoint(e.touches[0], e.touches[1]);
+    }
+  }, { passive: true });
+
+  starmapSvg.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    const rect = starmapSvg.getBoundingClientRect();
+    if (touchMode === 'pan' && e.touches.length === 1) {
+      const dxPix = e.touches[0].clientX - touchStartSingle.x;
+      const dyPix = e.touches[0].clientY - touchStartSingle.y;
+      if (Math.hypot(dxPix, dyPix) > 4) dragMoved = true;
+      const dxSvg = (dxPix / rect.width) * touchStartViewBox.width;
+      const dySvg = (dyPix / rect.height) * touchStartViewBox.height;
+      setViewBox({ ...touchStartViewBox, x: touchStartViewBox.x - dxSvg, y: touchStartViewBox.y - dySvg });
+    } else if (touchMode === 'pinch' && e.touches.length === 2) {
+      dragMoved = true;
+      const newDistance = touchDistance(e.touches[0], e.touches[1]);
+      const factor = touchStartDistance / newDistance;
+      const point = toSvgPoint(touchStartMid.x, touchStartMid.y);
+      // ピンチ開始時点のviewBoxを基準にズーム(基準を毎回更新することで滑らかに追従)
+      const vb = touchStartViewBox;
+      const minW = FULL_VIEWBOX.width * 0.02, maxW = FULL_VIEWBOX.width * 1.5;
+      let newWidth = Math.min(maxW, Math.max(minW, vb.width * factor));
+      let newHeight = newWidth * (vb.height / vb.width);
+      const scale = newWidth / vb.width;
+      const newX = point.x - (point.x - vb.x) * scale;
+      const newY = point.y - (point.y - vb.y) * scale;
+      setViewBox({ x: newX, y: newY, width: newWidth, height: newHeight });
+    }
+  }, { passive: false });
+
+  starmapSvg.addEventListener('touchend', () => {
+    touchMode = null;
+    setTimeout(() => { dragMoved = false; }, 0);
+  });
+
+  // ================= モード切り替え =================
+
+  const modeButtons = document.querySelectorAll('.mode-toggle button');
+  const profitFields = document.getElementById('profit-fields');
+
+  modeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      modeButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      profitFields.classList.toggle('visible', btn.dataset.mode === 'profit');
+    });
+  });
+
+  // ================= 探索実行 =================
+
+  function showError(msg) {
+    const el = document.getElementById('error-banner');
+    el.textContent = msg;
+    el.classList.add('visible');
+  }
+  function clearError() {
+    document.getElementById('error-banner').classList.remove('visible');
+  }
+  function setProgress(msg) {
+    const el = document.getElementById('progress-line');
+    if (!msg) { el.classList.remove('visible'); el.textContent = ''; return; }
+    el.textContent = msg;
+    el.classList.add('visible');
+  }
+
+  document.getElementById('run-btn').addEventListener('click', runSearch);
+
+  async function runSearch() {
+    clearError();
+    const originName = document.getElementById('origin-region').value.trim();
+    const destName = document.getElementById('dest-region').value.trim();
+
+    const originId = state.regionNameToId.get(originName);
+    const destId = state.regionNameToId.get(destName);
+
+    if (!originId || !destId) {
+      showError('出発・到着リージョンは、候補一覧から正確な名前を選択してください。');
+      return;
+    }
+
+    const mode = document.querySelector('.mode-toggle button.active').dataset.mode;
+    const cargoCapacity = parseFloat(document.getElementById('cargo-capacity').value) || null;
+    const budget = parseFloat(document.getElementById('budget').value) || null;
+    const taxRatePct = parseFloat(document.getElementById('tax-rate').value) || 0;
+    const minPrice = parseFloat(document.getElementById('min-price').value) || null;
+    const maxPrice = parseFloat(document.getElementById('max-price').value) || null;
+
+    if (minPrice != null && maxPrice != null && minPrice > maxPrice) {
+      showError('単価フィルターの下限が上限を超えています。値を見直してください。');
+      return;
+    }
+
+    const allowedSec = new Set();
+    if (document.getElementById('sec-high').checked) allowedSec.add('high');
+    if (document.getElementById('sec-low').checked) allowedSec.add('low');
+    if (document.getElementById('sec-null').checked) allowedSec.add('null');
+
+    if (allowedSec.size === 0) {
+      showError('セキュリティステータスを最低1つは選択してください。');
+      return;
+    }
+
+    const runBtn = document.getElementById('run-btn');
+    runBtn.disabled = true;
+    document.getElementById('run-status').textContent = '';
+
+    try {
+      // 1. 出発リージョンの売り注文 / 到着リージョンの買い注文を取得
+      setProgress('出発リージョンの売り注文を取得中... (1/2)');
+      let sellOrders = await fetchAllOrders(originId, 'sell', (p, total) => {
+        setProgress(`出発リージョンの売り注文を取得中... (${p}/${total} ページ)`);
+      });
+
+      setProgress('到着リージョンの買い注文を取得中... (2/2)');
+      let buyOrders = await fetchAllOrders(destId, 'buy', (p, total) => {
+        setProgress(`到着リージョンの買い注文を取得中... (${p}/${total} ページ)`);
+      });
+
+      // 1b. ログイン中かつ建造物(Citadel)が追加されている場合、対象リージョン内のものをオーダーに合流させる
+      const token = await ensureAccessToken();
+      if (token && state.addedStructures.size > 0) {
+        const originStructures = [...state.addedStructures.entries()].filter(([, s]) => s.regionId === originId);
+        const destStructures = [...state.addedStructures.entries()].filter(([, s]) => s.regionId === destId);
+
+        for (const [structureId] of originStructures) {
+          try {
+            setProgress(`建造物マーケットを取得中...`);
+            const orders = await fetchAllStructureOrders(structureId);
+            sellOrders = sellOrders.concat(orders.filter(o => !o.is_buy_order));
+          } catch (e) {
+            console.warn(`建造物 #${structureId} のオーダー取得に失敗しました(ドッキング権限が無い可能性があります)`, e);
+          }
+        }
+        for (const [structureId] of destStructures) {
+          try {
+            setProgress(`建造物マーケットを取得中...`);
+            const orders = await fetchAllStructureOrders(structureId);
+            buyOrders = buyOrders.concat(orders.filter(o => o.is_buy_order));
+          } catch (e) {
+            console.warn(`建造物 #${structureId} のオーダー取得に失敗しました(ドッキング権限が無い可能性があります)`, e);
+          }
+        }
+      }
+
+      setProgress('セキュリティステータスを確認中...');
+      const allSystemIds = [...new Set([
+        ...sellOrders.map(o => o.system_id),
+        ...buyOrders.map(o => o.system_id),
+      ])];
+      const secMap = await fetchSecurityStatuses(allSystemIds, (done, total) => {
+        setProgress(`セキュリティステータスを確認中... (${done}/${total} システム)`);
+      });
+
+      const filteredSellOrders = sellOrders.filter(o => allowedSec.has(securityClass(secMap.get(o.system_id))));
+      const filteredBuyOrders = buyOrders.filter(o => allowedSec.has(securityClass(secMap.get(o.system_id))));
+
+      setProgress('価格差を計算中...');
+
+      // 2. type_id ごとに最安の売り注文(出発側)・最高値の買い注文(到着側)を集計
+      const bestSell = new Map(); // type_id -> {price, location_id, system_id, volume_remain}
+      for (const o of filteredSellOrders) {
+        const cur = bestSell.get(o.type_id);
+        if (!cur || o.price < cur.price) {
+          bestSell.set(o.type_id, { price: o.price, location_id: o.location_id, system_id: o.system_id, volume_remain: o.volume_remain });
+        }
+      }
+      const bestBuy = new Map(); // type_id -> {price, location_id, system_id, volume_remain}
+      for (const o of filteredBuyOrders) {
+        const cur = bestBuy.get(o.type_id);
+        if (!cur || o.price > cur.price) {
+          bestBuy.set(o.type_id, { price: o.price, location_id: o.location_id, system_id: o.system_id, volume_remain: o.volume_remain });
+        }
+      }
+
+      // 3. 両リージョンに存在するアイテムで、利益が出る組み合わせを抽出
+      let candidates = [];
+      for (const [typeId, sell] of bestSell) {
+        if (minPrice != null && sell.price < minPrice) continue;
+        if (maxPrice != null && sell.price > maxPrice) continue;
+        const buy = bestBuy.get(typeId);
+        if (!buy) continue;
+        const grossMargin = buy.price - sell.price;
+        if (grossMargin <= 0) continue;
+        const netMargin = grossMargin - (buy.price * taxRatePct / 100);
+        if (netMargin <= 0) continue;
+        candidates.push({
+          typeId,
+          originPrice: sell.price,
+          originLocationId: sell.location_id,
+          originSystemId: sell.system_id,
+          originAvailable: sell.volume_remain,
+          destPrice: buy.price,
+          destLocationId: buy.location_id,
+          destSystemId: buy.system_id,
+          destAvailable: buy.volume_remain,
+          profitPerUnit: netMargin,
+        });
+      }
+
+      candidates.sort((a, b) => b.profitPerUnit - a.profitPerUnit);
+      candidates = candidates.slice(0, 30); // 上位30件のみ詳細化(名前解決・体積取得のコストを抑える)
+
+      if (candidates.length === 0) {
+        setProgress(null);
+        document.getElementById('empty-state').style.display = 'block';
+        document.getElementById('empty-state').innerHTML =
+          '条件に合う交易ルートが見つかりませんでした。<br>リージョンの組み合わせや税率設定を見直してみてください。';
+        document.getElementById('results-table').style.display = 'none';
+        return;
+      }
+
+      // 4. 積載量・予算・在庫数から推奨数量と合計利益を計算(モードに関わらず常に計算)
+      //    積載量/予算が未入力の場合は、在庫数の範囲でフル数量とみなす
+      setProgress('推奨数量・合計利益を計算中...');
+      for (const c of candidates) {
+        let qty = Math.min(c.originAvailable, c.destAvailable);
+        if (cargoCapacity) {
+          const volume = await fetchTypeVolume(c.typeId);
+          if (volume) {
+            qty = Math.min(qty, Math.floor(cargoCapacity / volume));
+          }
+        }
+        if (budget) {
+          qty = Math.min(qty, Math.floor(budget / c.originPrice));
+        }
+        qty = Math.max(qty, 0);
+        c.suggestedQty = qty;
+        c.totalProfit = qty * c.profitPerUnit;
+      }
+      // 利益考慮モードのときは合計利益の大きい順に並び替え、それ以外は単価差益順のまま
+      if (mode === 'profit') {
+        candidates.sort((a, b) => b.totalProfit - a.totalProfit);
+      }
+
+      // 5. 表示用の名前を解決(アイテム名・ステーション名)
+      setProgress('アイテム名・ステーション名を解決中...');
+      const typeNames = await resolveNames(candidates.map(c => c.typeId));
+      const typeNameMap = new Map(typeNames.map(t => [t.id, t.name]));
+
+      const stationIds = new Set();
+      candidates.forEach(c => { stationIds.add(c.originLocationId); stationIds.add(c.destLocationId); });
+      await Promise.all([...stationIds].map(id => resolveStationName(id)));
+
+      // 5b. ジャンプ数を解決(同じシステムペアはキャッシュ済みなら再取得しない)
+      setProgress('ジャンプ数を計算中...');
+      await runWithConcurrency(candidates, 10, async (c) => {
+        c.jumps = await fetchJumpCount(c.originSystemId, c.destSystemId);
+      });
+
+      // 6. テーブル描画
+      const tbody = document.getElementById('results-body');
+      tbody.innerHTML = '';
+      candidates.forEach(c => {
+        const tr = document.createElement('tr');
+        const isk = n => n == null ? '—' : Math.round(n).toLocaleString('ja-JP');
+        tr.innerHTML = `
+          <td>${typeNameMap.get(c.typeId) ?? `型ID #${c.typeId}`}</td>
+          <td>${state.stationNameCache.get(c.originLocationId) ?? '—'}</td>
+          <td>${state.stationNameCache.get(c.destLocationId) ?? '—'}</td>
+          <td>${c.jumps != null ? c.jumps + ' jump' : '不明'}</td>
+          <td>${isk(c.originPrice)} ISK</td>
+          <td>${isk(c.destPrice)} ISK</td>
+          <td class="profit-positive">${isk(c.profitPerUnit)} ISK</td>
+          <td>${c.suggestedQty != null ? c.suggestedQty.toLocaleString('ja-JP') : '—'}</td>
+          <td class="profit-positive">${c.totalProfit != null ? isk(c.totalProfit) + ' ISK' : '—'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('empty-state').style.display = 'none';
+      document.getElementById('results-table').style.display = 'table';
+      setProgress(null);
+
+    } catch (e) {
+      console.error(e);
+      showError('データ取得中にエラーが発生しました: ' + e.message);
+      setProgress(null);
+    } finally {
+      runBtn.disabled = false;
+    }
+  }
+</script>
+
+</body>
+</html>
