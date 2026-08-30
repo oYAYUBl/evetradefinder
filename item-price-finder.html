@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Item Price Finder — New Eden</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root {
+    --bg-void:      #0a0e16;
+    --bg-panel:     #101822;
+    --bg-panel-2:   #151f2c;
+    --line:         #22303f;
+    --line-bright:  #2f4356;
+    --cyan:         #4fd1c5;
+    --cyan-dim:     #2d7a72;
+    --amber:        #e8a33d;
+    --amber-dim:    #8a6224;
+    --text-main:    #c9d6e3;
+    --text-dim:     #6f8296;
+    --text-bright:  #eef4f9;
+    --danger:       #e0637a;
+    --sec-high:     #57d68d;
+    --sec-low:      #e8a33d;
+    --sec-null:     #e0637a;
+
+    --font-ui:   'Inter', -apple-system, sans-serif;
+    --font-mono: 'Space Mono', 'SFMono-Regular', monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg-void);
+    background-image:
+      radial-gradient(1px 1px at 20px 30px, rgba(255,255,255,0.15), transparent),
+      radial-gradient(1px 1px at 120px 80px, rgba(255,255,255,0.1), transparent),
+      radial-gradient(1px 1px at 250px 200px, rgba(255,255,255,0.12), transparent),
+      radial-gradient(1px 1px at 340px 60px, rgba(255,255,255,0.08), transparent),
+      radial-gradient(2px 2px at 400px 300px, rgba(79,209,197,0.15), transparent);
+    background-repeat: repeat;
+    background-size: 500px 500px;
+    color: var(--text-main);
+    font-family: var(--font-ui);
+    min-height: 100vh;
+  }
+
+  header {
+    border-bottom: 1px solid var(--line);
+    padding: 20px 32px;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    background: linear-gradient(180deg, rgba(21,31,44,0.6), transparent);
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .brand { display: flex; align-items: baseline; gap: 12px; }
+  .brand .mark {
+    font-family: var(--font-mono);
+    color: var(--cyan);
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    border: 1px solid var(--cyan-dim);
+    padding: 3px 8px;
+    border-radius: 2px;
+  }
+  .brand h1 { font-size: 19px; font-weight: 600; color: var(--text-bright); margin: 0; letter-spacing: 0.01em; }
+
+  .tool-nav { display: flex; gap: 4px; }
+  .tool-nav a {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+  .tool-nav a:hover { color: var(--text-main); }
+  .tool-nav a.active {
+    color: var(--cyan);
+    border-color: var(--cyan-dim);
+    background: rgba(79,209,197,0.08);
+  }
+
+  main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  main h2 { font-size: 20px; color: var(--text-bright); font-weight: 600; margin: 0 0 6px; }
+  main .subtitle { font-size: 13px; color: var(--text-dim); margin: 0 0 28px; }
+
+  .search-panel {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  .search-panel input[type="text"] {
+    flex: 1;
+    background: var(--bg-panel-2);
+    border: 1px solid var(--line-bright);
+    color: var(--text-bright);
+    padding: 12px 14px;
+    border-radius: 4px;
+    font-family: var(--font-ui);
+    font-size: 14px;
+    outline: none;
+  }
+  .search-panel input[type="text"]:focus { border-color: var(--cyan); }
+  .search-panel input::placeholder { color: var(--text-dim); }
+
+  .btn-primary {
+    background: var(--cyan);
+    color: #06231f;
+    border: none;
+    padding: 0 22px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: var(--font-ui);
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: filter 0.15s ease;
+  }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-primary:disabled { background: var(--line-bright); color: var(--text-dim); cursor: not-allowed; }
+
+  .options-row {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+  .checkbox-row { display: flex; align-items: center; gap: 6px; }
+  .checkbox-row input { accent-color: var(--cyan); width: 14px; height: 14px; }
+
+  .progress-line {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--cyan);
+    margin-bottom: 14px;
+    display: none;
+  }
+  .progress-line.visible { display: block; }
+
+  .error-banner {
+    border: 1px solid var(--danger);
+    background: rgba(224,99,122,0.08);
+    color: var(--danger);
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .error-banner.visible { display: block; }
+
+  .empty-state {
+    border: 1px dashed var(--line-bright);
+    border-radius: 6px;
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+  .empty-state .glyph { font-family: var(--font-mono); font-size: 28px; color: var(--cyan-dim); margin-bottom: 12px; }
+
+  .item-summary {
+    display: none;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 18px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .item-summary .item-name { color: var(--text-bright); font-size: 16px; font-family: var(--font-ui); font-weight: 600; }
+
+  table.results {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    display: none;
+  }
+  table.results th {
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line-bright);
+    cursor: pointer;
+    user-select: none;
+  }
+  table.results th:hover { color: var(--text-main); }
+  table.results td { padding: 10px; border-bottom: 1px solid var(--line); color: var(--text-main); }
+  table.results tr:hover td { background: rgba(79,209,197,0.04); }
+  table.results tr.best-row td { background: rgba(87,214,141,0.06); }
+  .price-highlight { color: var(--cyan); font-family: var(--font-mono); }
+  .rank-badge {
+    display: inline-block;
+    width: 20px; height: 20px;
+    line-height: 20px;
+    text-align: center;
+    border-radius: 50%;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    background: var(--bg-panel-2);
+    border: 1px solid var(--line-bright);
+    color: var(--text-dim);
+  }
+  tr.best-row .rank-badge { background: rgba(87,214,141,0.18); border-color: var(--sec-high); color: var(--sec-high); }
+
+  .sec-tag {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 2px;
+    border: 1px solid;
+  }
+  .sec-tag.high { color: var(--sec-high); border-color: var(--sec-high); }
+  .sec-tag.low  { color: var(--sec-low);  border-color: var(--sec-low); }
+  .sec-tag.null { color: var(--sec-null); border-color: var(--sec-null); }
+
+  footer {
+    padding: 14px 32px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-dim);
+    border-top: 1px solid var(--line);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="mark">ESI</span>
+    <h1>Item Price Finder</h1>
+  </div>
+  <nav class="tool-nav">
+    <a href="index.html">交易ルート探索</a>
+    <a href="item-price-finder.html" class="active">アイテム価格比較</a>
+  </nav>
+</header>
+
+<main>
+  <h2>アイテム別リージョン価格比較</h2>
+  <p class="subtitle">アイテム名を入力すると、New Eden全域のリージョンを横断してどこで一番高く売れるか(逆に一番安く仕入れられるか)を調べます。</p>
+
+  <div class="search-panel">
+    <input type="text" id="item-name-input" placeholder="アイテム名を正確に入力(例: Tritanium, PLEX)">
+    <button type="button" class="btn-primary" id="search-btn">検索</button>
+  </div>
+
+  <div class="options-row">
+    <label class="checkbox-row"><input type="checkbox" id="sec-high" checked>ハイセック</label>
+    <label class="checkbox-row"><input type="checkbox" id="sec-low" checked>ローセック</label>
+    <label class="checkbox-row"><input type="checkbox" id="sec-null" checked>ヌルセック</label>
+    <label class="checkbox-row" style="margin-left:auto;">
+      表示:
+      <select id="sort-mode" style="background:var(--bg-panel-2); color:var(--text-main); border:1px solid var(--line-bright); border-radius:3px; padding:4px 6px; font-size:12px;">
+        <option value="sell-high">高く売れる順(買い注文が高い順)</option>
+        <option value="buy-low">安く仕入れられる順(売り注文が安い順)</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="error-banner" id="error-banner"></div>
+  <div class="progress-line" id="progress-line"></div>
+
+  <div class="item-summary" id="item-summary">
+    <span class="item-name" id="summary-item-name"></span>
+    <span id="summary-region-count"></span>
+  </div>
+
+  <div class="empty-state" id="empty-state">
+    <div class="glyph">◇ ◇ ◇</div>
+    アイテム名を入力して検索すると、ここに全リージョンの価格比較が表示されます。
+  </div>
+
+  <table class="results" id="results-table">
+    <thead>
+      <tr>
+        <th></th>
+        <th data-sort="region">リージョン</th>
+        <th data-sort="sec">セキュリティ</th>
+        <th data-sort="station">最良ステーション</th>
+        <th data-sort="buy">最高買い注文(売却価格)</th>
+        <th data-sort="sell">最安売り注文(仕入価格)</th>
+      </tr>
+    </thead>
+    <tbody id="results-body"></tbody>
+  </table>
+</main>
+
+<footer>
+  new-eden-trade-finder — client-side only / ESI (EVE Swagger Interface) 利用 — データはブラウザ内でのみ処理されます
+</footer>
+
+<script>
+  const ESI_BASE = 'https://esi.evetech.net/latest';
+
+  const state = {
+    regionIdToName: new Map(),
+    regionIds: [],
+    systemSecurityCache: new Map(),
+    lastResults: [], // { regionId, regionName, bestBuy, bestSell, station, security }
+    sortMode: 'sell-high',
+  };
+
+  async function esiGetJson(url, options) {
+    const res = await fetch(url, options);
+    if (!res.ok) throw new Error(`ESI request failed (${res.status}): ${url}`);
+    return res;
+  }
+
+  async function runWithConcurrency(items, limit, worker) {
+    const results = new Array(items.length);
+    let index = 0;
+    async function next() {
+      while (index < items.length) {
+        const i = index++;
+        results[i] = await worker(items[i], i);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, next));
+    return results;
+  }
+
+  function securityClass(sec) {
+    if (sec == null) return null;
+    if (sec >= 0.45) return 'high';
+    if (sec >= 0.05) return 'low';
+    return 'null';
+  }
+
+  function setProgress(msg) {
+    const el = document.getElementById('progress-line');
+    if (!msg) { el.classList.remove('visible'); el.textContent = ''; return; }
+    el.textContent = msg;
+    el.classList.add('visible');
+  }
+  function showError(msg) {
+    const el = document.getElementById('error-banner');
+    el.textContent = msg;
+    el.classList.add('visible');
+  }
+  function clearError() {
+    document.getElementById('error-banner').classList.remove('visible');
+  }
+
+  // ---- 初期化: リージョン一覧 ----
+  async function initRegions() {
+    try {
+      const res = await esiGetJson(`${ESI_BASE}/universe/regions/`);
+      const ids = await res.json();
+      const named = await resolveNames(ids);
+      const regions = named.filter(n => n.category === 'region');
+      regions.forEach(r => state.regionIdToName.set(r.id, r.name));
+      state.regionIds = regions.map(r => r.id);
+    } catch (e) {
+      showError('リージョン一覧の取得に失敗しました。ネットワーク設定をご確認ください。');
+    }
+  }
+
+  async function resolveNames(ids) {
+    const unique = [...new Set(ids)].filter(id => id != null);
+    if (unique.length === 0) return [];
+    const chunks = [];
+    for (let i = 0; i < unique.length; i += 1000) chunks.push(unique.slice(i, i + 1000));
+    const results = [];
+    for (const chunk of chunks) {
+      try {
+        const res = await fetch(`${ESI_BASE}/universe/names/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(chunk),
+        });
+        if (res.ok) results.push(...await res.json());
+      } catch (e) { console.warn('resolveNames failed', e); }
+    }
+    return results;
+  }
+
+  async function resolveTypeId(name) {
+    const res = await fetch(`${ESI_BASE}/universe/ids/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify([name]),
+    });
+    if (!res.ok) throw new Error('アイテム名の解決に失敗しました');
+    const data = await res.json();
+    const match = data.inventory_types?.[0];
+    return match ? match.id : null;
+  }
+
+  async function fetchSecurityStatuses(systemIds, onProgress) {
+    const map = new Map();
+    let done = 0;
+    const toFetch = systemIds.filter(id => !state.systemSecurityCache.has(id));
+    await runWithConcurrency(toFetch, 20, async (id) => {
+      try {
+        const res = await esiGetJson(`${ESI_BASE}/universe/systems/${id}/`);
+        const data = await res.json();
+        state.systemSecurityCache.set(id, data.security_status);
+      } catch (e) {
+        state.systemSecurityCache.set(id, null);
+      }
+      done++;
+      if (onProgress) onProgress(done, toFetch.length);
+    });
+    systemIds.forEach(id => map.set(id, state.systemSecurityCache.get(id)));
+    return map;
+  }
+
+  async function resolveStationName(locationId) {
+    if (locationId >= 1_000_000_000_000) return `建造物 #${locationId} (要認証)`;
+    try {
+      const res = await esiGetJson(`${ESI_BASE}/universe/stations/${locationId}/`);
+      const data = await res.json();
+      return data.name;
+    } catch (e) {
+      return `ステーション #${locationId}`;
+    }
+  }
+
+  document.getElementById('search-btn').addEventListener('click', runSearch);
+  document.getElementById('item-name-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') runSearch();
+  });
+  document.getElementById('sort-mode').addEventListener('change', (e) => {
+    state.sortMode = e.target.value;
+    renderResults();
+  });
+
+  async function runSearch() {
+    clearError();
+    const itemName = document.getElementById('item-name-input').value.trim();
+    if (!itemName) {
+      showError('アイテム名を入力してください。');
+      return;
+    }
+
+    const allowedSec = new Set();
+    if (document.getElementById('sec-high').checked) allowedSec.add('high');
+    if (document.getElementById('sec-low').checked) allowedSec.add('low');
+    if (document.getElementById('sec-null').checked) allowedSec.add('null');
+    if (allowedSec.size === 0) {
+      showError('セキュリティステータスを最低1つは選択してください。');
+      return;
+    }
+
+    const searchBtn = document.getElementById('search-btn');
+    searchBtn.disabled = true;
+    document.getElementById('item-summary').style.display = 'none';
+    document.getElementById('results-table').style.display = 'none';
+    document.getElementById('empty-state').style.display = 'none';
+
+    try {
+      if (state.regionIds.length === 0) {
+        setProgress('リージョン一覧を取得中...');
+        await initRegions();
+      }
+
+      setProgress('アイテム名を解決中...');
+      const typeId = await resolveTypeId(itemName);
+      if (!typeId) {
+        showError(`「${itemName}」という名前のアイテムが見つかりませんでした。正式名称(英語名)を正確に入力してください。`);
+        setProgress(null);
+        return;
+      }
+
+      let done = 0;
+      const total = state.regionIds.length;
+      setProgress(`全${total}リージョンを走査中... (0/${total})`);
+
+      const perRegion = await runWithConcurrency(state.regionIds, 12, async (regionId) => {
+        try {
+          const res = await esiGetJson(`${ESI_BASE}/markets/${regionId}/orders/?type_id=${typeId}&order_type=all&page=1`);
+          const orders = await res.json();
+          done++;
+          setProgress(`全${total}リージョンを走査中... (${done}/${total})`);
+          if (orders.length === 0) return null;
+
+          let bestBuy = null, bestSell = null;
+          for (const o of orders) {
+            if (o.is_buy_order) {
+              if (!bestBuy || o.price > bestBuy.price) bestBuy = o;
+            } else {
+              if (!bestSell || o.price < bestSell.price) bestSell = o;
+            }
+          }
+          return { regionId, bestBuy, bestSell };
+        } catch (e) {
+          done++;
+          setProgress(`全${total}リージョンを走査中... (${done}/${total})`);
+          return null;
+        }
+      });
+
+      const withData = perRegion.filter(r => r && (r.bestBuy || r.bestSell));
+      if (withData.length === 0) {
+        setProgress(null);
+        document.getElementById('empty-state').style.display = 'block';
+        document.getElementById('empty-state').innerHTML = 'このアイテムのマーケットオーダーがどのリージョンにも見つかりませんでした。';
+        return;
+      }
+
+      setProgress('セキュリティステータスを確認中...');
+      const systemIds = [...new Set(withData.flatMap(r => [r.bestBuy?.system_id, r.bestSell?.system_id].filter(Boolean)))];
+      const secMap = await fetchSecurityStatuses(systemIds, (d, t) => setProgress(`セキュリティステータスを確認中... (${d}/${t})`));
+
+      // 表示に使うセキュリティは「買い注文があるシステム」を優先(無ければ売り注文側)
+      const filtered = withData.filter(r => {
+        const sysId = r.bestBuy?.system_id ?? r.bestSell?.system_id;
+        return allowedSec.has(securityClass(secMap.get(sysId)));
+      });
+
+      if (filtered.length === 0) {
+        setProgress(null);
+        document.getElementById('empty-state').style.display = 'block';
+        document.getElementById('empty-state').innerHTML = '選択したセキュリティステータスの範囲内では見つかりませんでした。フィルターを見直してください。';
+        return;
+      }
+
+      setProgress('ステーション名を解決中...');
+      const stationIds = [...new Set(filtered.flatMap(r => [r.bestBuy?.location_id, r.bestSell?.location_id].filter(Boolean)))];
+      const stationNames = new Map();
+      await Promise.all(stationIds.map(async id => stationNames.set(id, await resolveStationName(id))));
+
+      state.lastResults = filtered.map(r => {
+        const sysId = r.bestBuy?.system_id ?? r.bestSell?.system_id;
+        return {
+          regionId: r.regionId,
+          regionName: state.regionIdToName.get(r.regionId) ?? `リージョン #${r.regionId}`,
+          security: securityClass(secMap.get(sysId)),
+          bestBuyPrice: r.bestBuy?.price ?? null,
+          bestBuyStation: r.bestBuy ? stationNames.get(r.bestBuy.location_id) : null,
+          bestSellPrice: r.bestSell?.price ?? null,
+          bestSellStation: r.bestSell ? stationNames.get(r.bestSell.location_id) : null,
+        };
+      });
+
+      document.getElementById('summary-item-name').textContent = itemName;
+      document.getElementById('summary-region-count').textContent = `${filtered.length} リージョンでオーダーを確認`;
+      document.getElementById('item-summary').style.display = 'flex';
+
+      renderResults();
+      setProgress(null);
+    } catch (e) {
+      console.error(e);
+      showError('データ取得中にエラーが発生しました: ' + e.message);
+      setProgress(null);
+    } finally {
+      searchBtn.disabled = false;
+    }
+  }
+
+  function renderResults() {
+    const rows = [...state.lastResults];
+    if (state.sortMode === 'sell-high') {
+      rows.sort((a, b) => (b.bestBuyPrice ?? -Infinity) - (a.bestBuyPrice ?? -Infinity));
+    } else {
+      rows.sort((a, b) => {
+        const av = a.bestSellPrice ?? Infinity, bv = b.bestSellPrice ?? Infinity;
+        return av - bv;
+      });
+    }
+
+    const isk = n => n == null ? '—' : Math.round(n).toLocaleString('ja-JP') + ' ISK';
+    const secLabel = { high: 'ハイセック', low: 'ローセック', null: 'ヌルセック' };
+
+    const tbody = document.getElementById('results-body');
+    tbody.innerHTML = '';
+    rows.forEach((r, i) => {
+      const tr = document.createElement('tr');
+      if (i === 0) tr.className = 'best-row';
+      const sec = r.security ?? 'null';
+      tr.innerHTML = `
+        <td><span class="rank-badge">${i + 1}</span></td>
+        <td>${r.regionName}</td>
+        <td><span class="sec-tag ${sec}">${secLabel[sec] ?? '不明'}</span></td>
+        <td>${state.sortMode === 'sell-high' ? (r.bestBuyStation ?? '—') : (r.bestSellStation ?? '—')}</td>
+        <td class="price-highlight">${isk(r.bestBuyPrice)}</td>
+        <td>${isk(r.bestSellPrice)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('results-table').style.display = 'table';
+  }
+
+  initRegions();
+</script>
+
+</body>
+</html>
