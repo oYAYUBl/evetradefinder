@@ -82,6 +82,27 @@
     letter-spacing: 0.01em;
   }
 
+  .tool-nav {
+    display: flex;
+    gap: 4px;
+  }
+  .tool-nav a {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+  .tool-nav a:hover { color: var(--text-main); }
+  .tool-nav a.active {
+    color: var(--cyan);
+    border-color: var(--cyan-dim);
+    background: rgba(79,209,197,0.08);
+  }
+
   .status-line {
     font-family: var(--font-mono);
     font-size: 12px;
@@ -305,6 +326,42 @@
     transition: background 0.15s ease;
   }
   .btn-sso:hover { background: rgba(232,163,61,0.1); }
+  .btn-sso + .btn-sso { margin-top: 6px; }
+
+  #auth-setup { margin-bottom: 10px; }
+
+  .auth-skills {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--line);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.7;
+  }
+  .auth-skills .skill-value { color: var(--cyan); }
+
+  .structure-chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: var(--bg-panel-2);
+    border: 1px solid var(--line-bright);
+    border-radius: 3px;
+    padding: 6px 8px;
+    margin-top: 6px;
+    font-size: 12px;
+  }
+  .structure-chip .chip-name { color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .structure-chip .chip-remove {
+    background: transparent;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
 
   /* ---------- Submit ---------- */
   .btn-primary {
@@ -592,6 +649,10 @@
     <span class="mark">ESI</span>
     <h1>Trade Route Finder</h1>
   </div>
+  <nav class="tool-nav">
+    <a href="index.html" class="active">交易ルート探索</a>
+    <a href="item-price-finder.html">アイテム価格比較</a>
+  </nav>
   <div class="status-line">
     <span class="status-dot offline" id="esi-status-dot"></span>
     <span id="esi-status-text">ESI未接続</span>
@@ -692,7 +753,26 @@
 
     <div class="auth-block">
       <div class="auth-state" id="auth-state">未ログイン — 公開マーケットデータのみ使用</div>
+
+      <div id="auth-setup">
+        <label class="field-label" style="margin-top:10px;">EVE Developer Client ID</label>
+        <input type="text" id="client-id-input" placeholder="Client IDを入力">
+        <div class="init-status" id="redirect-uri-hint"></div>
+      </div>
+
       <button type="button" class="btn-sso" id="sso-btn">EVE SSO でログイン</button>
+      <button type="button" class="btn-sso" id="logout-btn" style="display:none;">ログアウト</button>
+
+      <div class="auth-skills" id="auth-skills" style="display:none;"></div>
+    </div>
+
+    <div class="field-group" id="structures-block" style="display:none;">
+      <span class="field-label">建造物(Citadel)マーケットを追加</span>
+      <div class="row-2">
+        <input type="text" id="structure-id-input" placeholder="Structure ID">
+        <button type="button" class="btn-sso" id="add-structure-btn">追加</button>
+      </div>
+      <div id="structures-list"></div>
     </div>
 
     <button type="button" class="btn-primary" id="run-btn">探索実行</button>
@@ -950,7 +1030,364 @@ const REGION_ADJACENCY = [
     starmapLoaded: false,
     starmapTarget: 'origin',     // 'origin' | 'dest' — マップクリックがどちらの入力欄に反映されるか
     starmapCircles: new Map(),   // region_id -> <circle> DOM要素
+    auth: {
+      accessToken: null,
+      accessTokenExpiresAt: 0,   // epochミリ秒
+      characterId: null,
+      characterName: null,
+    },
+    skillTypeIds: null,          // { accounting, brokerRelations } (遅延解決してキャッシュ)
+    systemRegionCache: new Map(), // system_id -> region_id (建造物のリージョン判定用)
+    addedStructures: new Map(),  // structure_id -> { name, systemId, regionId }
   };
+
+  // ================= EVE SSO (PKCE, ポップアップ方式) =================
+
+  const SSO_AUTHORIZE_URL = 'https://login.eveonline.com/v2/oauth/authorize/';
+  const SSO_TOKEN_URL = 'https://login.eveonline.com/v2/oauth/token';
+  const SSO_SCOPES = 'esi-skills.read_skills.v1 esi-markets.structure_markets.v1 esi-universe.read_structures.v1';
+
+  function getClientId() {
+    return document.getElementById('client-id-input').value.trim();
+  }
+
+  function randomString(length) {
+    const bytes = new Uint8Array(length);
+    crypto.getRandomValues(bytes);
+    return [...bytes].map(b => ('0' + b.toString(16)).slice(-2)).join('').slice(0, length);
+  }
+
+  function base64UrlEncode(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    for (const b of bytes) binary += String.fromCharCode(b);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  async function sha256(text) {
+    const data = new TextEncoder().encode(text);
+    return crypto.subtle.digest('SHA-256', data);
+  }
+
+  function decodeJwtPayload(token) {
+    const payload = token.split('.')[1];
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(json);
+  }
+
+  function redirectUri() {
+    return window.location.origin + window.location.pathname;
+  }
+
+  async function startLogin() {
+    const clientId = getClientId();
+    if (!clientId) {
+      showAuthMessage('Client IDを入力してください(下の案内を参考にEVE Developerでアプリケーションを登録してください)');
+      return;
+    }
+    localStorage.setItem('eve_client_id', clientId);
+
+    const verifier = randomString(64);
+    const challenge = base64UrlEncode(await sha256(verifier));
+    const stateParam = randomString(16);
+    localStorage.setItem('eve_pkce_verifier', verifier);
+    localStorage.setItem('eve_pkce_state', stateParam);
+
+    const params = new URLSearchParams({
+      response_type: 'code',
+      redirect_uri: redirectUri(),
+      client_id: clientId,
+      scope: SSO_SCOPES,
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+      state: stateParam,
+    });
+
+    const popup = window.open(`${SSO_AUTHORIZE_URL}?${params.toString()}`, 'eve-sso-login', 'width=460,height=680');
+    if (!popup) {
+      showAuthMessage('ポップアップがブロックされました。ブラウザの設定でポップアップを許可してください。');
+    }
+  }
+
+  // ポップアップ側(EVE SSOからのリダイレクト先)としてこのページが再読み込みされた場合の処理
+  async function handleSsoCallbackIfPresent() {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const returnedState = params.get('state');
+    if (!code) return;
+
+    const expectedState = localStorage.getItem('eve_pkce_state');
+    const verifier = localStorage.getItem('eve_pkce_verifier');
+    localStorage.removeItem('eve_pkce_state');
+    localStorage.removeItem('eve_pkce_verifier');
+
+    const fail = (message) => {
+      if (window.opener) {
+        window.opener.postMessage({ type: 'eve-sso-error', message }, window.location.origin);
+        window.close();
+      }
+    };
+
+    if (!verifier || returnedState !== expectedState) {
+      fail('認証状態の検証に失敗しました(state不一致)');
+      return;
+    }
+
+    try {
+      const clientId = localStorage.getItem('eve_client_id');
+      const tokenRes = await fetch(SSO_TOKEN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code,
+          client_id: clientId,
+          code_verifier: verifier,
+        }),
+      });
+      if (!tokenRes.ok) throw new Error(`トークン取得に失敗しました (${tokenRes.status})`);
+      const tokenData = await tokenRes.json();
+
+      const payload = decodeJwtPayload(tokenData.access_token);
+      const characterId = payload.sub.split(':').pop();
+      const characterName = payload.name;
+
+      localStorage.setItem('eve_refresh_token', tokenData.refresh_token);
+      localStorage.setItem('eve_character_id', characterId);
+      localStorage.setItem('eve_character_name', characterName);
+
+      if (window.opener) {
+        window.opener.postMessage({ type: 'eve-sso-success' }, window.location.origin);
+        window.close();
+      } else {
+        // ポップアップがブロックされ、直接このページで認証が完結した場合のフォールバック
+        history.replaceState({}, '', window.location.pathname);
+        await onLoginSuccess();
+      }
+    } catch (e) {
+      fail(e.message);
+    }
+  }
+
+  window.addEventListener('message', (e) => {
+    if (e.origin !== window.location.origin) return;
+    if (e.data?.type === 'eve-sso-success') {
+      onLoginSuccess();
+    } else if (e.data?.type === 'eve-sso-error') {
+      showAuthMessage('ログインに失敗しました: ' + e.data.message);
+    }
+  });
+
+  // 有効なアクセストークンを返す(必要ならリフレッシュトークンで更新)。未ログインならnull。
+  async function ensureAccessToken() {
+    const now = Date.now();
+    if (state.auth.accessToken && now < state.auth.accessTokenExpiresAt - 60000) {
+      return state.auth.accessToken;
+    }
+    const refreshToken = localStorage.getItem('eve_refresh_token');
+    const clientId = localStorage.getItem('eve_client_id');
+    if (!refreshToken || !clientId) return null;
+
+    try {
+      const res = await fetch(SSO_TOKEN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: refreshToken, client_id: clientId }),
+      });
+      if (!res.ok) throw new Error('リフレッシュ失敗');
+      const data = await res.json();
+      state.auth.accessToken = data.access_token;
+      state.auth.accessTokenExpiresAt = Date.now() + data.expires_in * 1000;
+      if (data.refresh_token) localStorage.setItem('eve_refresh_token', data.refresh_token);
+      return state.auth.accessToken;
+    } catch (e) {
+      console.warn('トークンのリフレッシュに失敗しました', e);
+      return null;
+    }
+  }
+
+  async function apiAuthFetch(url) {
+    const token = await ensureAccessToken();
+    if (!token) throw new Error('ログインが必要です');
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error(`認証付きAPIリクエストが失敗しました (${res.status}): ${url}`);
+    return res;
+  }
+
+  function showAuthMessage(msg) {
+    const el = document.getElementById('redirect-uri-hint');
+    el.textContent = msg;
+    el.classList.add('error');
+  }
+
+  async function onLoginSuccess() {
+    state.auth.characterId = localStorage.getItem('eve_character_id');
+    state.auth.characterName = localStorage.getItem('eve_character_name');
+    document.getElementById('auth-state').textContent = `ログイン中: ${state.auth.characterName}`;
+    document.getElementById('auth-setup').style.display = 'none';
+    document.getElementById('sso-btn').style.display = 'none';
+    document.getElementById('logout-btn').style.display = 'block';
+    document.getElementById('structures-block').style.display = 'block';
+
+    await ensureAccessToken();
+    await loadCharacterSkills();
+    renderStructureList();
+  }
+
+  function logout() {
+    localStorage.removeItem('eve_refresh_token');
+    localStorage.removeItem('eve_character_id');
+    localStorage.removeItem('eve_character_name');
+    state.auth.accessToken = null;
+    state.auth.accessTokenExpiresAt = 0;
+    state.auth.characterId = null;
+    state.auth.characterName = null;
+
+    document.getElementById('auth-state').textContent = '未ログイン — 公開マーケットデータのみ使用';
+    document.getElementById('auth-setup').style.display = 'block';
+    document.getElementById('sso-btn').style.display = 'block';
+    document.getElementById('logout-btn').style.display = 'none';
+    document.getElementById('structures-block').style.display = 'none';
+    document.getElementById('auth-skills').style.display = 'none';
+  }
+
+  // ================= スキル取得(Accounting / Broker Relations) =================
+
+  async function loadCharacterSkills() {
+    const skillsEl = document.getElementById('auth-skills');
+    skillsEl.style.display = 'block';
+    skillsEl.textContent = 'スキル情報を取得中...';
+
+    try {
+      if (!state.skillTypeIds) {
+        const res = await fetch(`${ESI_BASE}/universe/ids/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(['Accounting', 'Broker Relations']),
+        });
+        const data = await res.json();
+        const types = data.inventory_types ?? [];
+        state.skillTypeIds = {
+          accounting: types.find(t => t.name === 'Accounting')?.id,
+          brokerRelations: types.find(t => t.name === 'Broker Relations')?.id,
+        };
+      }
+
+      const skillsRes = await apiAuthFetch(`${ESI_BASE}/characters/${state.auth.characterId}/skills/`);
+      const skillsData = await skillsRes.json();
+      const findLevel = (typeId) => skillsData.skills?.find(s => s.skill_id === typeId)?.trained_skill_level ?? 0;
+
+      const accountingLv = findLevel(state.skillTypeIds.accounting);
+      const brokerLv = findLevel(state.skillTypeIds.brokerRelations);
+
+      const salesTaxPct = Math.max(0, 7.5 * (1 - 0.11 * accountingLv));
+      const brokerFeePct = Math.max(1, 3 - 0.3 * brokerLv);
+
+      skillsEl.innerHTML = `
+        Accounting Lv.${accountingLv} → サールタックス自動設定: <span class="skill-value">${salesTaxPct.toFixed(2)}%</span><br>
+        Broker Relations Lv.${brokerLv} → 発注時ブローカー手数料(参考): <span class="skill-value">${brokerFeePct.toFixed(2)}%</span>
+      `;
+
+      // 単価フィルターと違い、税率は「売却時に必ず引かれるサールタックス」を自動反映する
+      document.getElementById('tax-rate').value = salesTaxPct.toFixed(2);
+    } catch (e) {
+      console.error(e);
+      skillsEl.textContent = 'スキル情報の取得に失敗しました。esi-skills.read_skills.v1 のスコープが許可されているか確認してください。';
+    }
+  }
+
+  // ================= 建造物(Citadel)マーケット =================
+
+  // システムが属するリージョンIDを解決(システム→コンステレーション→リージョンの2段階)
+  async function resolveRegionOfSystem(systemId) {
+    if (state.systemRegionCache.has(systemId)) return state.systemRegionCache.get(systemId);
+    const sysRes = await esiGetJson(`${ESI_BASE}/universe/systems/${systemId}/`);
+    const sys = await sysRes.json();
+    const consRes = await esiGetJson(`${ESI_BASE}/universe/constellations/${sys.constellation_id}/`);
+    const cons = await consRes.json();
+    state.systemRegionCache.set(systemId, cons.region_id);
+    return cons.region_id;
+  }
+
+  async function addStructure(structureIdRaw) {
+    const structureId = Number(structureIdRaw);
+    if (!structureId || state.addedStructures.has(structureId)) return;
+
+    try {
+      const res = await apiAuthFetch(`${ESI_BASE}/universe/structures/${structureId}/`);
+      const data = await res.json();
+      const regionId = await resolveRegionOfSystem(data.solar_system_id);
+      state.addedStructures.set(structureId, { name: data.name, systemId: data.solar_system_id, regionId });
+      renderStructureList();
+    } catch (e) {
+      showError('建造物情報の取得に失敗しました。IDが正しいか、その建造物にドッキング権限があるかご確認ください。');
+    }
+  }
+
+  function renderStructureList() {
+    const listEl = document.getElementById('structures-list');
+    listEl.innerHTML = '';
+    for (const [id, s] of state.addedStructures) {
+      const chip = document.createElement('div');
+      chip.className = 'structure-chip';
+      const regionName = state.regionIdToName.get(s.regionId) ?? '不明なリージョン';
+      chip.innerHTML = `
+        <span class="chip-name" title="${s.name}">${s.name}(${regionName})</span>
+        <button type="button" class="chip-remove" data-id="${id}">×</button>
+      `;
+      chip.querySelector('.chip-remove').addEventListener('click', () => {
+        state.addedStructures.delete(id);
+        renderStructureList();
+      });
+      listEl.appendChild(chip);
+    }
+  }
+
+  // 指定した建造物の全マーケットオーダーを取得(要認証、order_type絞り込み非対応なので取得後に分類する)
+  async function fetchAllStructureOrders(structureId, onProgress) {
+    const firstRes = await apiAuthFetch(`${ESI_BASE}/markets/structures/${structureId}/?page=1`);
+    const firstData = await firstRes.json();
+    const totalPages = parseInt(firstRes.headers.get('x-pages') || '1', 10);
+    let all = [...firstData];
+    if (onProgress) onProgress(1, totalPages);
+    if (totalPages > 1) {
+      const rest = await Promise.all(
+        Array.from({ length: totalPages - 1 }, (_, i) =>
+          apiAuthFetch(`${ESI_BASE}/markets/structures/${structureId}/?page=${i + 2}`)
+            .then(res => res.json())
+            .then(data => { if (onProgress) onProgress(i + 2, totalPages); return data; })
+        )
+      );
+      rest.forEach(d => { all = all.concat(d); });
+    }
+    return all;
+  }
+
+  document.getElementById('sso-btn').addEventListener('click', startLogin);
+  document.getElementById('logout-btn').addEventListener('click', logout);
+  document.getElementById('add-structure-btn').addEventListener('click', () => {
+    const input = document.getElementById('structure-id-input');
+    addStructure(input.value.trim());
+    input.value = '';
+  });
+
+  // ページ読み込み時: Client ID/リダイレクト先URLの表示、ログインコールバック処理、既存セッションの復元
+  (function initAuthUi() {
+    const savedClientId = localStorage.getItem('eve_client_id');
+    if (savedClientId) document.getElementById('client-id-input').value = savedClientId;
+    document.getElementById('redirect-uri-hint').textContent = `Callback URLに設定: ${redirectUri()}`;
+  })();
+
+  handleSsoCallbackIfPresent();
+
+  // 前回セッションが残っていれば自動的にログイン状態を復元
+  (async function restoreSession() {
+    if (window.opener) return; // ポップアップ自身では復元処理をしない
+    const refreshToken = localStorage.getItem('eve_refresh_token');
+    if (refreshToken && localStorage.getItem('eve_character_id')) {
+      await onLoginSuccess();
+    }
+  })();
 
   // ================= ユーティリティ =================
 
@@ -996,6 +1433,20 @@ const REGION_ADJACENCY = [
     }
     // 構造物(citadel)のIDはNPCステーションのID帯より大きい
     if (locationId >= 1_000_000_000_000) {
+      // ログイン中なら、ドッキング権限がある建造物については実名を解決できる
+      const token = await ensureAccessToken();
+      if (token) {
+        try {
+          const res = await fetch(`${ESI_BASE}/universe/structures/${locationId}/`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            state.stationNameCache.set(locationId, data.name);
+            return data.name;
+          }
+        } catch (e) { /* 権限が無い場合など。下のフォールバック表記を使う */ }
+      }
       const label = `建造物 #${locationId} (要認証)`;
       state.stationNameCache.set(locationId, label);
       return label;
@@ -1146,13 +1597,13 @@ const REGION_ADJACENCY = [
     return REGION_ADJACENCY.filter(([a, b]) => positions.has(a) && positions.has(b));
   }
 
-  // 反発力(ノード同士)+ばね力(近接ペア)+中心への弱い引力で、重なりを解消したレイアウトを作る
   // リージョン名の長さから箱のサイズを決める(レイアウト計算・描画の両方で使う共通ロジック)
   function computeBoxSize(name) {
     const w = Math.max(56, Math.min(148, name.length * 5.6 + 18));
     return { w, h: 20 };
   }
 
+  // 反発力(ノード同士)+ばね力(近接ペア)+中心への弱い引力で、重なりを解消したレイアウトを作る
   function runForceLayout(positions, edges, iterations = 220) {
     const W = FULL_VIEWBOX.width, H = FULL_VIEWBOX.height, PAD = 70;
     const ids = [...positions.keys()];
@@ -1611,11 +2062,6 @@ const REGION_ADJACENCY = [
     });
   });
 
-  // ---- SSOボタン(現時点ではスタブ) ----
-  document.getElementById('sso-btn').addEventListener('click', () => {
-    alert('EVE SSO 連携は未実装です(今後のステップで追加予定)。\n現在は認証なしの公開マーケットデータのみで動作します。');
-  });
-
   // ================= 探索実行 =================
 
   function showError(msg) {
@@ -1677,14 +2123,40 @@ const REGION_ADJACENCY = [
     try {
       // 1. 出発リージョンの売り注文 / 到着リージョンの買い注文を取得
       setProgress('出発リージョンの売り注文を取得中... (1/2)');
-      const sellOrders = await fetchAllOrders(originId, 'sell', (p, total) => {
+      let sellOrders = await fetchAllOrders(originId, 'sell', (p, total) => {
         setProgress(`出発リージョンの売り注文を取得中... (${p}/${total} ページ)`);
       });
 
       setProgress('到着リージョンの買い注文を取得中... (2/2)');
-      const buyOrders = await fetchAllOrders(destId, 'buy', (p, total) => {
+      let buyOrders = await fetchAllOrders(destId, 'buy', (p, total) => {
         setProgress(`到着リージョンの買い注文を取得中... (${p}/${total} ページ)`);
       });
+
+      // 1b. ログイン中かつ建造物(Citadel)が追加されている場合、対象リージョン内のものをオーダーに合流させる
+      const token = await ensureAccessToken();
+      if (token && state.addedStructures.size > 0) {
+        const originStructures = [...state.addedStructures.entries()].filter(([, s]) => s.regionId === originId);
+        const destStructures = [...state.addedStructures.entries()].filter(([, s]) => s.regionId === destId);
+
+        for (const [structureId] of originStructures) {
+          try {
+            setProgress(`建造物マーケットを取得中...`);
+            const orders = await fetchAllStructureOrders(structureId);
+            sellOrders = sellOrders.concat(orders.filter(o => !o.is_buy_order));
+          } catch (e) {
+            console.warn(`建造物 #${structureId} のオーダー取得に失敗しました(ドッキング権限が無い可能性があります)`, e);
+          }
+        }
+        for (const [structureId] of destStructures) {
+          try {
+            setProgress(`建造物マーケットを取得中...`);
+            const orders = await fetchAllStructureOrders(structureId);
+            buyOrders = buyOrders.concat(orders.filter(o => o.is_buy_order));
+          } catch (e) {
+            console.warn(`建造物 #${structureId} のオーダー取得に失敗しました(ドッキング権限が無い可能性があります)`, e);
+          }
+        }
+      }
 
       setProgress('セキュリティステータスを確認中...');
       const allSystemIds = [...new Set([
