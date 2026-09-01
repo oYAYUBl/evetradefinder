@@ -253,6 +253,7 @@
   <nav class="tool-nav">
     <a href="index.html">交易ルート探索</a>
     <a href="item-price-finder.html" class="active">アイテム価格比較</a>
+    <a href="manufacturing-calculator.html">製造利益計算</a>
   </nav>
 </header>
 
@@ -399,7 +400,7 @@
     const res = await fetch(`${ESI_BASE}/universe/ids/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify([name]),
+      body: JSON.stringify({ names: [name] }),
     });
     if (!res.ok) throw new Error('アイテム名の解決に失敗しました');
     const data = await res.json();

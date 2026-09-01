@@ -659,6 +659,7 @@
     <nav class="tool-nav">
       <a href="index.html" class="active">交易ルート探索</a>
       <a href="item-price-finder.html">アイテム価格比較</a>
+      <a href="manufacturing-calculator.html">製造利益計算</a>
     </nav>
     <div class="status-line">
       <span class="status-dot offline" id="esi-status-dot"></span>
@@ -1271,7 +1272,7 @@ const REGION_ADJACENCY = [
         const res = await fetch(`${ESI_BASE}/universe/ids/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(['Accounting', 'Broker Relations']),
+          body: JSON.stringify({ names: ['Accounting', 'Broker Relations'] }),
         });
         const data = await res.json();
         const types = data.inventory_types ?? [];
