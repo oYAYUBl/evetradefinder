@@ -1268,18 +1268,11 @@ const REGION_ADJACENCY = [
     skillsEl.textContent = 'スキル情報を取得中...';
 
     try {
+      // Accounting / Broker Relations の Type ID は EVE SDE (invTypes) で確認済みの固定値
+      // (以前は /universe/ids/ で動的解決していたが、現在このエンドポイントは
+      //  inventory_types カテゴリを返さない状態のため、固定値に変更)
       if (!state.skillTypeIds) {
-        const res = await fetch(`${ESI_BASE}/universe/ids/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ names: ['Accounting', 'Broker Relations'] }),
-        });
-        const data = await res.json();
-        const types = data.inventory_types ?? [];
-        state.skillTypeIds = {
-          accounting: types.find(t => t.name === 'Accounting')?.id,
-          brokerRelations: types.find(t => t.name === 'Broker Relations')?.id,
-        };
+        state.skillTypeIds = { accounting: 16622, brokerRelations: 3446 };
       }
 
       const skillsRes = await apiAuthFetch(`${ESI_BASE}/characters/${state.auth.characterId}/skills/`);
